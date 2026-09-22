@@ -1,7 +1,7 @@
 const DATA=window.__DATA;
 const DAYS=['L','M','X','J','V'], DAYN={L:'lunes',M:'martes',X:'miércoles',J:'jueves',V:'viernes'};
 const CALS=['Confirmada con dirección','Confirmada: centro sin dirección','Confirmada: solo población','Sin verificar: dato original con dirección','Sin verificar: dato original sin dirección'];
-const RESULTS=['Presentado DOLNER','Interesado','Muestras entregadas','Ya prescribe','No estaba','No interesado','Ya no pasa consulta aquí'];
+const RESULTS=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe','No estaba','No interesado','Ya no pasa consulta aquí'];
 const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const $=id=>document.getElementById(id);
 const esc=s=>(s??'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -290,7 +290,7 @@ function openDlg(code,ce){
   if($('qdlg').open)$('qdlg').close();
   const d=BYCODE.get(code),s=segOf(code)||{};DLGCODE=code;
   $('dlgTitle').textContent=d.n;$('dlgSub').textContent=d.e+(DB?'':' · Registro no disponible fuera de Claude');
-  $('vFecha').value=today();fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';$('vMu').value='';$('vCal').checked=false;
+  $('vFecha').value=today();$('vWhen').innerHTML=`Hoy, ${fmtDate(today())} <span class="sm">· se guarda la hora del registro</span>`;fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';$('vMu').value='';$('vCal').checked=false;
   $('vResB').innerHTML=RESULTS.map(r=>`<button type="button" data-res="${esc(r)}" aria-pressed="false">${esc(r)}</button>`).join('');
   const ces=uniq(d.cons.map(c=>c.ce).concat(ce||[]));$('vCentro').innerHTML=ces.map(x=>`<option>${esc(x)}</option>`).join('');$('vCentro').value=ce||s.ce||ces[0]||'';
   const c=d.cons.find(x=>x.ce===$('vCentro').value)||d.cons[0];
@@ -306,7 +306,8 @@ async function saveDlg(){
   const f=$('vFecha').value||today(),ce=$('vCentro').value;
   const mu=Math.max(0,parseInt($('vMu').value,10)||0);
   {const ne=estadoDeRes(res),ord=['Sin contactar','Presentado','Interesado','Prescribe'];if(d.est&&ne&&ne!=='No interesado'&&ord.indexOf(ne)>ord.indexOf(d.est))d.est=ne;}
-  const visitas=(prev.visitas||[]).concat([{f,res,ce,nota:$('vNota').value.trim(),mu}]).slice(-20);
+  const hh=nowHM();
+  const visitas=(prev.visitas||[]).concat([{f,h:hh,res,ce,nota:$('vNota').value.trim(),mu}]).slice(-20);
   const doc={c:d.c,n:d.n,ce,ultima:(prev.ultima&&prev.ultima>f)?prev.ultima:f,res:(prev.ultima&&prev.ultima>f)?prev.res:res,horario,contacto:$('vContacto').value.trim(),prox:$('vProx').value.trim(),prox_f:$('vProxF').value||'',visitas};
   $('dlgSave').disabled=true;$('dlgMsg').textContent='Guardando…';
   try{await DB.collection('seguimiento').doc(String(d.c)).set(doc);SEG.set(d.c,doc);if(Object.keys(horario).length)await saveScheduleFromVisit(d.c,ce,horario);$('dlg').close();
@@ -475,7 +476,9 @@ Pregunta: ${q}`;
 const isMob=()=>!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
 function telHref(t){const d=String(t||'').split(/[\/;,]| o /)[0].replace(/[^\d+]/g,'');if(d.length<9)return '';return 'tel:'+(d.startsWith('+')?d:(d.length===9?'+34'+d:d))}
 function mapsHref(c){const q=c.d?`${c.d}, ${c.m}`:(c.ce&&c.ce!=='CONSULTA PRIVADA'?`${c.ce}, ${c.m}`:'');if(!q)return '';const e=encodeURIComponent(q);
-  return (localStorage.getItem('dlc_maps')==='apple')?`https://maps.apple.com/?daddr=${e}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=driving`}
+  const pref=localStorage.getItem('dlc_maps');
+  if(pref==='waze')return c.lat&&c.lon?`https://waze.com/ul?ll=${c.lat},${c.lon}&navigate=yes`:`https://waze.com/ul?q=${e}&navigate=yes`;
+  return pref==='apple'?`https://maps.apple.com/?daddr=${e}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=driving`}
 function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
   return `<div class="acts2"><button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}<button type="button" class="act" data-edit="${d.c}">Editar ficha</button><button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>${extra||''}</div>`}
 function cardHTML(d,c){const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
@@ -528,7 +531,7 @@ function openQuick(code){const d=BYCODE.get(code);if(!d)return;const s=segOf(cod
   $('qbody').innerHTML=cardHTML(d,d.cons[0]).replace('class="card"','class="card" style="padding:0;border:0"')+
    `<div style="margin-top:12px"><label class="sm" for="qEst">Estado comercial</label><select id="qEst" data-qest="${d.c}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)">${ESTADOS.map(e=>`<option ${estadoDe(d)===e?'selected':''}>${e}</option>`).join('')}</select><div class="sm">${d.est?'Fijado a mano':'Calculado según las visitas'}</div></div>`+
    (d.cons.length>1?`<h4 style="margin:14px 0 6px">Consultas</h4>${d.cons.map(c=>`<div class="sm" style="margin-bottom:6px"><b>${esc(c.ce||'Sin centro')}</b> · ${esc([c.d,c.m].filter(Boolean).join(', '))}${c.dy.some(Boolean)?' · '+DAYS.map((k,i)=>c.dy[i]?k+' '+esc(c.dy[i]):'').filter(Boolean).join(', '):''}${mapsHref(c)?` · <a href="${esc(mapsHref(c))}" target="_blank" rel="noopener">Cómo llegar</a>`:''}</div>`).join('')}`:'')+
-   (s&&s.visitas&&s.visitas.length?`<h4 style="margin:14px 0 6px">Visitas</h4>${s.visitas.slice().reverse().map(v=>`<div class="sm" style="margin-bottom:4px">${fmtDate(v.f)} · <b>${esc(v.res)}</b>${v.mu?` · ${v.mu} muestras`:''}${v.nota?' · '+esc(v.nota):''}</div>`).join('')}`:'')+
+   (s&&s.visitas&&s.visitas.length?`<h4 style="margin:14px 0 6px">Visitas</h4>${s.visitas.slice().reverse().map(v=>`<div class="sm" style="margin-bottom:4px">${fmtDate(v.f)}${v.h?' '+esc(v.h):''} · <b>${esc(v.res)}</b>${v.mu?` · ${v.mu} muestras`:''}${v.nota?' · '+esc(v.nota):''}</div>`).join('')}`:'')+
    (s&&s.prox?`<p class="sm" style="margin-top:10px">Próxima acción: <b>${esc(s.prox)}</b> ${fmtDate(s.prox_f)}</p>`:'')+
    (d.url?`<p class="sm"><a href="${esc(d.url)}" target="_blank" rel="noopener">Ficha web</a></p>`:'');
   if(!$('qdlg').open)$('qdlg').showModal();}
@@ -666,6 +669,7 @@ async function updateNow(){
   location.replace(location.pathname+'?v='+Date.now());
 }
 function setupV133(){
+  ['gesturestart','gesturechange'].forEach(ev=>document.addEventListener(ev,e=>{if(!e.target.closest||!e.target.closest('#map'))e.preventDefault()},{passive:false}));
   document.querySelector('.logo').addEventListener('click',()=>{toast(`DLC OS · versión ${window.__APPVER}${datosTxt()?' · '+datosTxt().toLowerCase():''}`,'info');checkVersion(false)});
   $('eUrgSeg').addEventListener('click',e=>{const b=e.target.closest('[data-u]');if(!b)return;$('eUrg').checked=b.dataset.u==='1';urgSeg();if($('eUrg').checked)$('eUrgM').focus()});
   ['edlg','dlg','qdlg','shdlg','cfgDlg'].forEach(id=>{const dl=$(id);if(!dl)return;dl.addEventListener('mousedown',e=>{dl._down=e.target===dl});dl.addEventListener('click',e=>{if(e.target===dl&&dl._down)dl.close()})});
@@ -830,7 +834,7 @@ function renderP(){
     h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida de Santpedor</li>`;
     pl.stops.forEach((s,si)=>{
       if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
-      const cc={ce:s.ct.ce,d:s.ct.d,m:s.ct.m};const mh=mapsHref(cc);
+      const cc={ce:s.ct.ce,d:s.ct.d,m:s.ct.m,lat:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[0]:null,lon:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[1]:null};const mh=mapsHref(cc);
       h+=`<li class="${si===nextI?'now':''}"><span class="tt">${hm(s.arr)}</span><div>${si===nextI?'<div class="sm" style="font-weight:700;color:var(--navy)">Siguiente parada</div>':''}<div class="an">${esc(s.ct.ce==='CONSULTA PRIVADA'||!s.ct.ce?'Consulta privada':s.ct.ce)}</div><div class="sm">${esc(s.ct.d||'Dirección por confirmar')} · ${esc(s.ct.m)} · ${s.tr} min de trayecto</div><div class="acts2" style="margin-top:6px">${mh?`<a class="act pri2" href="${esc(mh)}" target="_blank" rel="noopener">Ir a esta parada</a>`:''}${P.fecha===today()?(chkGet()&&chkGet().ce===(s.ct.ce||'Consulta privada')?`<button type="button" class="act" data-chkout="1">Termino aquí</button>`:`<button type="button" class="act" data-chkin="${esc(s.ct.ce||'Consulta privada')}" data-chkm="${esc(s.ct.m)}">Estoy aquí</button>`):''}</div>
        <ul class="plist">${s.seq.map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${x.d.top?'<span class="topb">Urgente</span> ':''}${esc(x.d.n)}</div><div class="sm">${hm(x.at)} · ${esc(x.d.e||'')}${x.known?' · pasa consulta hoy':''}${x.d.vn?' · '+esc(x.d.vn):''}</div></span>
        <span style="display:flex;gap:6px">${telHref(x.c.tel||x.d.tel)?`<a class="reg" href="${telHref(x.c.tel||x.d.tel)}">Llamar</a>`:''}<button class="reg" data-edit="${x.d.c}">Editar</button><button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button><button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
@@ -991,7 +995,7 @@ function enqueue(name,id,v){
     if(i>=0)box[i]=op; else box.push(op);
   }else if(name==='seguimiento'){
     const last=(v.visitas||[])[v.visitas.length-1]||{};
-    box.push({id:'v-'+uid(),tipo:'visita',at:Date.now(),data:{id:'v-'+uid(),f:last.f||v.ultima,c:v.c,n:v.n,ce:last.ce||v.ce,res:last.res||v.res,horario:v.horario||{},contacto:v.contacto||'',nota:last.nota||'',prox:v.prox||'',prox_f:v.prox_f||'',muestras:last.mu||0}});
+    box.push({id:'v-'+uid(),tipo:'visita',at:Date.now(),data:{id:'v-'+uid(),f:last.f||v.ultima,c:v.c,n:v.n,ce:last.ce||v.ce,res:last.res||v.res,horario:v.horario||{},contacto:v.contacto||'',nota:last.nota||'',prox:v.prox||'',prox_f:v.prox_f||'',muestras:last.mu||0,h:last.h||''}});
   }
   obxSet(box); flush();
 }
@@ -1039,7 +1043,7 @@ function buildFromSheet(){
     const d=BYCODE.get(c);
     SEG.set(c,{c,n:d?d.n:last[I['NOMBRE']],ce:last[I['CENTRO']],ultima:last[I['FECHA']],res:last[I['RESULTADO']],horario,
       contacto:(rows.map(r=>r[I['CONTACTO']]).filter(Boolean).pop())||(d&&d.contacto)||'',prox:last[I['PRÓXIMA ACCIÓN']],prox_f:last[I['FECHA PRÓXIMA ACCIÓN']],
-      visitas:rows.map(r=>({f:r[I['FECHA']],res:r[I['RESULTADO']],ce:r[I['CENTRO']],nota:r[I['NOTA']],mu:+(I['MUESTRAS']!==undefined?r[I['MUESTRAS']]:0)||0}))});
+      visitas:rows.map(r=>({f:r[I['FECHA']],h:I['HORA']!==undefined?r[I['HORA']]:'',res:r[I['RESULTADO']],ce:r[I['CENTRO']],nota:r[I['NOTA']],mu:+(I['MUESTRAS']!==undefined?r[I['MUESTRAS']]:0)||0}))});
   });
   DATA.forEach(d=>{if(d.ed)FICHA.set(d.c,{c:d.c,n:d.n,e:d.e,tel:d.tel,contacto:d.contacto||'',nota:d.nota||'',upd:d.ed,cons:d.cons.map(x=>({ce:x.ce,m:x.m,d:x.d,cp:x.cp,tel:x.tel,dy:[...x.dy]}))})});
   // reaplicar lo pendiente de enviar
@@ -1047,7 +1051,7 @@ function buildFromSheet(){
     if(o.tipo==='prioridad'){const d=BYCODE.get(+o.data.c);if(d){const p=o.data.prioridad||'';d.top=p.startsWith('Urgente · ')?p.slice(10):''}continue}
     if(o.tipo==='ficha'&&o.data.nuevo&&!BYCODE.has(+o.data.c)){const nd=newDoctorObj(+o.data.c);Object.assign(nd,{n:o.data.n,e:o.data.e||'',a:o.data.a||nd.a,tel:o.data.tel||'',top:(o.data.prioridad||'').startsWith('Urgente · ')?o.data.prioridad.slice(10):''});addDoctor(nd)}
     if(o.tipo==='ficha'){FICHA.set(+o.data.c,o.data);applyFicha(+o.data.c)}
-    else{const v=o.data,c=+v.c,prev=SEG.get(c)||{c,n:v.n,visitas:[]};const vis=(prev.visitas||[]).concat([{f:v.f,res:v.res,ce:v.ce,nota:v.nota,mu:v.muestras||0}]);
+    else{const v=o.data,c=+v.c,prev=SEG.get(c)||{c,n:v.n,visitas:[]};const vis=(prev.visitas||[]).concat([{f:v.f,h:v.h||'',res:v.res,ce:v.ce,nota:v.nota,mu:v.muestras||0}]);
       SEG.set(c,{...prev,ce:v.ce,ultima:(prev.ultima&&prev.ultima>v.f)?prev.ultima:v.f,res:(prev.ultima&&prev.ultima>v.f)?prev.res:v.res,horario:{...(prev.horario||{}),...(v.horario||{})},contacto:v.contacto||prev.contacto,prox:v.prox,prox_f:v.prox_f,visitas:vis})}
   }
 }
