@@ -711,7 +711,7 @@ async function flush(){
   if(flushing||!navigator.onLine||!CFG.url)return; const box=obxGet(); if(!box.length){syncUI();return}
   flushing=true;syncUI();
   try{
-    const r=await fetch(CFG.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
+    const r=await fetch(CFG.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
     const j=await r.json(); if(!j.ok)throw new Error(j.error||'error');
     const okIds=new Set(j.results.filter(x=>x.ok).map(x=>x.id));
     obxSet(obxGet().filter(o=>!okIds.has(o.id)));
@@ -755,7 +755,7 @@ async function setupDb(){
   $('syncBtn').onclick=()=>{flush().then(checkUpdates)};
   $('cfgBtn').onclick=()=>{$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').textContent=`Versión ${window.__APPVER||''} · datos de ${window.__RAWJ&&window.__RAWJ.hora?new Date(window.__RAWJ.hora).toLocaleString('es'):'—'}`;$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>$('cfgDlg').close();
-  $('cfgSave').onclick=()=>{localStorage.setItem('dlc_cfg',JSON.stringify({url:$('cfgUrl').value.trim(),t:$('cfgT').value.trim()}));location.reload()};
+  $('cfgSave').onclick=()=>{const u=$('cfgUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)){$('cfgMsg').textContent='La dirección debe empezar por https://script.google.com/macros/s/ y acabar en /exec.';return}localStorage.setItem('dlc_cfg',JSON.stringify({url:u,t:$('cfgT').value.trim()}));location.reload()};
   $('cfgReload').onclick=async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} window.__reloadData&&window.__reloadData()};
   $('newDataBtn').onclick=()=>location.reload();
   checkUpdates();

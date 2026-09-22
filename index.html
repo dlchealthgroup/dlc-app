@@ -300,21 +300,26 @@ dialog{max-height:92vh;overflow:auto}
 
 <dialog id="cfgDlg"><div class="fi" style="padding:18px">
   <h3>Ajustes</h3>
-  <label for="cfgUrl">Dirección de la conexión (URL que acaba en /exec)</label><input id="cfgUrl">
-  <label for="cfgT">Clave</label><input id="cfgT" type="password">
+  <label for="cfgUrl">Dirección de la conexión (URL que acaba en /exec)</label><input id="cfgUrl" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url">
+  <label for="cfgT">Clave</label><input id="cfgT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
   <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.0.0';
-const DEF_URL='https://script.google.com/macros/s/AKfycbzFN1T-EmQb2cci6MePsuaiZ4ZYf2y7nIlTfC8bSVXSRzDLJSit0dILUmCYnOkQ0djn/exec';
+window.__APPVER='1.0.1';
+const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
 const idb={db:null,open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('dlc-os',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
   async get(k){const db=await this.open();return new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})},
   async set(k,v){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
 function cfg(){try{return JSON.parse(localStorage.getItem('dlc_cfg')||'null')}catch(e){return null}}
-async function fetchAll(c){const r=await fetch(c.url+'?t='+encodeURIComponent(c.t)+'&a=all');const j=await r.json();if(!j.ok)throw new Error(j.error==='clave'?'La clave no es correcta.':'Error de la hoja: '+j.error);return j}
+function okUrl(u){return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u||'')}
+async function fetchAll(c){
+  if(!okUrl(c.url))throw new Error('La dirección de la conexión no es válida. Debe empezar por https://script.google.com/macros/s/ y acabar en /exec.');
+  const r=await fetch(c.url+'?t='+encodeURIComponent(c.t)+'&a=all',{credentials:'omit',cache:'no-store'});
+  const txt=await r.text(); let j;
+  try{j=JSON.parse(txt)}catch(e){let h='';try{h=new URL(r.url).hostname}catch(_){}const t=(txt.match(/<title>([^<]*)/i)||[])[1]||'';throw new Error('Google no ha devuelto los datos. Detalle para soporte: respuesta '+r.status+' desde '+h+(t?' · «'+t.trim()+'»':''))}if(!j.ok)throw new Error(j.error==='clave'?'La clave no es correcta.':'Error de la hoja: '+j.error);return j}
 function tbl(o){const I={};(o.h||[]).forEach((h,i)=>I[h]=i);return (o.rows||[]).map(r=>{const x={};for(const h in I)x[h]=r[I[h]]??'';return x})}
 function transform(raw){
   const M=tbl(raw.MEDICOS),C=tbl(raw.CONSULTAS),N=tbl(raw.NOTAS_VISITA); const DI={L:0,M:1,X:2,J:3,V:4};
@@ -330,17 +335,17 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.0.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.0.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
 window.__reloadData=async()=>{try{await idb.set('raw',await fetchAll(cfg()));location.reload()}catch(e){alert('No se han podido descargar los datos: '+e.message)}};
 function setupForm(msg){
   document.getElementById('bootCard').innerHTML=`<h2>DLC OS · Configuración</h2><p class="sm">Solo hace falta la primera vez en cada dispositivo.</p>
-   <label for="bU">Dirección de la conexión</label><input id="bU" value="${DEF_URL}">
-   <label for="bT">Clave</label><input id="bT" type="password" autocomplete="off">
+   <label for="bU">Dirección de la conexión</label><input id="bU" value="${DEF_URL}" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url" name="dlc-conexion">
+   <label for="bT">Clave</label><input id="bT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off" name="dlc-clave">
    <div class="acts"><button class="btn" id="bGo">Conectar</button></div><p class="sm" id="bMsg" style="color:#B7791F">${msg||''}</p>`;
-  document.getElementById('bGo').onclick=async()=>{const c={url:document.getElementById('bU').value.trim(),t:document.getElementById('bT').value.trim()};
+  document.getElementById('bGo').onclick=async()=>{const c={url:document.getElementById('bU').value.trim(),t:document.getElementById('bT').value.trim()};if(!c.t){document.getElementById('bMsg').textContent='Falta la clave.';return}
     const m=document.getElementById('bMsg');m.textContent='Descargando los datos de la hoja…';
     try{const j=await fetchAll(c);localStorage.setItem('dlc_cfg',JSON.stringify(c));await idb.set('raw',j);location.reload()}catch(e){m.textContent='No se ha podido conectar: '+e.message}};
 }
