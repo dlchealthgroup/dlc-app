@@ -15,7 +15,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,soloLoc:true,picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:''};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:''};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -139,18 +139,18 @@ function routeDocs(b){
     const anchors=b.stops.map(s=>{const docs=s.codes.map(c=>BYCODE.get(c)).filter(d=>d&&d.top).map(d=>[d,d.cons.find(c=>c.ce===s.ce)||d.cons[0]]);
       const addr=(docs.find(([d,c])=>c.d&&c.ce===s.ce)||[])[1]?.d||'';return {ce:s.label||s.ce,m:s.m,addr:s.q?'':addr,q:s.q,docs}});
     const inA=new Set(anchors.flatMap(a=>a.docs.map(([d])=>d.c)));const fill=[];
-    for(const d of DATA){if(S.soloLoc&&d.a!=='Aparato locomotor y dolor')continue;if(inA.has(d.c))continue;const ces=new Set(b.stops.map(s=>s.ce));const c=d.cons.find(c=>ces.has(c.ce)&&c.m===BCN);if(c)fill.push([d,c])}
+    for(const d of DATA){if(!areaOk(d))continue;if(inA.has(d.c))continue;const ces=new Set(b.stops.map(s=>s.ce));const c=d.cons.find(c=>ces.has(c.ce)&&c.m===BCN);if(c)fill.push([d,c])}
     fill.sort(sortDocs);return {anchors,fill,same:true};
   }
   const anchors=b.anchors.map(([ce,m])=>{
     const docs=[]; let addr='';
-    for(const d of DATA){ if(S.soloLoc&&d.a!=='Aparato locomotor y dolor')continue;
+    for(const d of DATA){ if(!areaOk(d))continue;
       const c=d.cons.find(c=>c.ce===ce&&c.m===m); if(c){docs.push([d,c]); if(!addr&&c.d)addr=c.d;} }
     docs.sort(sortDocs); return {ce,m,addr,docs};
   });
   const inAnchor=new Set(anchors.flatMap(a=>a.docs.map(([d])=>d.c)));
   const fill=[];
-  for(const d of DATA){ if(S.soloLoc&&d.a!=='Aparato locomotor y dolor')continue; if(inAnchor.has(d.c))continue;
+  for(const d of DATA){ if(!areaOk(d))continue; if(inAnchor.has(d.c))continue;
     const c=d.cons.find(c=>b.zones.includes(zoneOf(c))&&!ANCHORKEYS.has(c.ce+'|'+c.m)&&(c.d||(c.ce&&c.ce!=='CONSULTA PRIVADA')));
     if(c)fill.push([d,c]); }
   fill.sort(sortDocs); return {anchors,fill};
@@ -233,6 +233,7 @@ function detailRow(d,cols){
   ${actBtns(d,d.cons[0])}</td></tr>`;
 }
 function renderR(){
+  if($('areaSel'))$('areaSel').value=S.areaSel;
   $('count').innerHTML='';
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
@@ -277,7 +278,7 @@ function renderS(){
   renderFichas();
   const rows=[...SEG.values()].filter(s=>BYCODE.has(s.c));
   const wk=new Date();wk.setDate(wk.getDate()+7);const wks=wk.toISOString().slice(0,10);
-  $('stats').innerHTML=`<div><b>${rows.length}</b><span>médicos visitados</span></div><div><b>${rows.filter(s=>['Interesado','Muestras entregadas','Ya prescribe'].includes(s.res)).length}</b><span>interesados o prescriben</span></div><div><b>${rows.filter(s=>s.horario&&Object.values(s.horario).some(Boolean)).length}</b><span>con horario captado</span></div><div><b>${rows.filter(s=>s.prox_f&&s.prox_f<=wks).length}</b><span>acciones en los próximos 7 días</span></div>`;
+  $('stats').innerHTML=kpi(rows.length,'médicos visitados','user')+kpi(rows.filter(s=>['Interesado','Muestras entregadas','Ya prescribe'].includes(s.res)).length,'interesados o prescriben','star','k-ok')+kpi(rows.filter(s=>s.horario&&Object.values(s.horario).some(Boolean)).length,'con horario captado','clock')+kpi(rows.filter(s=>s.prox_f&&s.prox_f<=wks).length,'acciones en los próximos 7 días','task');
   rows.sort((a,b)=>(a.prox_f||'9999').localeCompare(b.prox_f||'9999')||(b.ultima||'').localeCompare(a.ultima||''));
   $('sbody').innerHTML=rows.map(s=>{const d=BYCODE.get(s.c);return `<tr class="row" data-c="${d.c}"><td><div class="nm">${esc(d.n)}</div><div class="sm">${esc(d.e)} · ${esc(s.ce||d.ce)}</div></td><td>${fmtDate(s.ultima)}</td><td>${esc(s.res||'')}</td><td>${DAYS.map(k=>s.horario&&s.horario[k]?k+' '+esc(s.horario[k]):'').filter(Boolean).join('<br>')}</td><td>${esc(s.contacto||'')}</td><td>${esc(s.prox||'')}${s.prox_f?`<div class="sm">${fmtDate(s.prox_f)}</div>`:''}</td></tr>`+(S.open.has(d.c)?detailRow(d,6):'')}).join('')
     ||`<tr><td colspan="6" class="empty">${DB?'Aún no hay visitas registradas. Empieza por la pestaña Rutas.':'El seguimiento solo está disponible abriendo el explorador desde su enlace de Claude.'}</td></tr>`;
@@ -310,7 +311,7 @@ async function saveDlg(){
   $('dlgSave').disabled=true;$('dlgMsg').textContent='Guardando…';
   try{await DB.collection('seguimiento').doc(String(d.c)).set(doc);SEG.set(d.c,doc);if(Object.keys(horario).length)await saveScheduleFromVisit(d.c,ce,horario);$('dlg').close();
     if($('vCal').checked&&doc.prox_f)icsDownload(`${doc.prox||'Seguimiento'} · ${d.n}`,doc.prox_f,'09:00','09:30',`${d.e||''}\n${(d.cons.find(x=>x.ce===ce)||d.cons[0]).d||''}`,[ce,(d.cons.find(x=>x.ce===ce)||d.cons[0]).m].filter(Boolean).join(', '));
-    afterEdit();}
+    afterEdit();toast('Visita guardada');}
   catch(e){$('dlgMsg').textContent=e.code==='quota_exceeded'?'No caben más registros en el explorador. Pídeme que archive las visitas antiguas.':'No se ha podido guardar ('+(e.code||'error')+'). Inténtalo de nuevo.';$('dlgSave').disabled=false}
   return false;
 }
@@ -330,15 +331,15 @@ function init(){
   on('fDias','click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset.d;S.dias=S.dias.includes(d)?S.dias.filter(x=>x!==d):[...S.dias,d];reset0()});
   on('fCal','change',()=>{S.cal=[...$('fCal').querySelectorAll('input:checked')].map(i=>i.value);reset0()});
   document.querySelectorAll('input[name=agr]').forEach(r=>r.addEventListener('change',e=>{S.agr=e.target.value;reset0()}));
-  on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('soloLoc','change',e=>{S.soloLoc=e.target.checked;render()});
+  on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('areaSel','change',e=>{setArea(e.target.value)});
   on('reset','click',()=>{clearFilters();reset0()});
   on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
   for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']])on(id,'click',()=>{S.tab=k;render()});
   on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
-  on('nearBtn','click',nearMe);
-  on('mapBtn','click',()=>{S.map=!S.map;render()});
+  on('nearBtn','click',e=>nearMe(e.target));
+  on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L)busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>render());else render()});
   on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b)return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b)return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   document.addEventListener('change',e=>{const q=e.target.closest('[data-qest]');if(q)setEstado(+q.dataset.qest,q.value)});
@@ -352,9 +353,9 @@ function init(){
   document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(confirm('¿Quitar a '+d.n+' de urgentes?'))setUrgent(d.c,false)}else{const m=prompt('Motivo para marcar como urgente (opcional):','');if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
-  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe();else if(k==='new')openNew();else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
+  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
     const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
-    const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})}});
+    const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;busy(p,()=>{P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})},'Calculando la ruta…')}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
   on('more','click',()=>{S.limit+=100;render()});on('rankMore','click',()=>{S.rlimit+=40;render()});
   const toggle=e=>{if(e.target.closest('a,button,input,label'))return;const tr=e.target.closest('tr.row');if(!tr)return;const c=+tr.dataset.c;S.open.has(c)?S.open.delete(c):S.open.add(c);render()};
@@ -362,12 +363,13 @@ function init(){
   document.addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b){e.preventDefault();openDlg(+b.dataset.reg,b.dataset.ce||'')}});
   on('routes','click',e=>{const b=e.target.closest('.rcard');if(b){S.route=b.dataset.r;render()}});
   on('day','click',e=>{const b=e.target.closest('[data-cd]');if(b){S.corDay=+b.dataset.cd;render()}});
-  on('plan','click',e=>{if(e.target.id==='pUseMin'){e.preventDefault();$('pM').value=minPorMedico();return}const ci=e.target.closest('[data-chkin]');if(ci){checkIn(ci.dataset.chkin,ci.dataset.chkm);return}if(e.target.closest('[data-chkout]')){checkOut();return}if(e.target.id==='pCal'){planToCalendar();return}if(e.target.id==='pGo'){runPlan();return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
+  on('plan','change',e=>{if(e.target.id==='pAr')setArea(e.target.value)});
+  on('plan','click',e=>{if(e.target.id==='pUseMin'){e.preventDefault();$('pM').value=minPorMedico();return}const ci=e.target.closest('[data-chkin]');if(ci){checkIn(ci.dataset.chkin,ci.dataset.chkm);return}if(e.target.closest('[data-chkout]')){checkOut();return}if(e.target.id==='pCal'){planToCalendar();return}if(e.target.id==='pGo'){busy(e.target,()=>runPlan(),'Calculando la ruta…');return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
   on('day','change',e=>{const i=e.target.closest('[data-pick]');if(!i)return;const c=+i.dataset.pick;i.checked?S.picks.add(c):S.picks.delete(c);render()});
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
   on('vCentro','change',()=>{const d=BYCODE.get(DLGCODE),c=d.cons.find(x=>x.ce===$('vCentro').value);if(c)$('vDias').querySelectorAll('input').forEach((i,ix)=>{if(!i.value)i.value=c.dy[ix]||''})});
-  setupEdit();render();setupDownload();setupDb();
+  setupEdit();setupShare();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
 function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:''})}
@@ -498,7 +500,7 @@ function renderH(){
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
-  let h=`<div class="acts2" style="margin:0 0 14px"><button type="button" class="act" data-h="near">Cerca de mí</button><button type="button" class="act" data-h="new">+ Nuevo médico</button><button type="button" class="act" data-h="share">Compartir semana</button></div><div class="kpis"><div class="kpi"><b>${weekV}</b><span>visitas esta semana</span></div><div class="kpi"><b>${weekMu}</b><span>muestras esta semana</span></div><div class="kpi"><b>${due.filter(s=>s.prox_f<=td).length}</b><span>acciones para hoy o atrasadas</span></div><div class="kpi"><b>${urg.length}</b><span>urgentes sin visitar</span></div><div class="kpi"><b>${pend}</b><span>${pend===1?'cambio pendiente':'cambios pendientes'} de enviar</span></div><button type="button" class="kpi" data-h="calidad" style="text-align:left;cursor:pointer"><b>${calidad().pct}%</b><span>fichas completas · ver qué falta</span></button></div>`;
+  let h=`<div class="acts2" style="margin:0 0 14px"><button type="button" class="act" data-h="near">Cerca de mí</button><button type="button" class="act" data-h="new">+ Nuevo médico</button><button type="button" class="act" data-h="share">Compartir semana</button></div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%','fichas completas · ver qué falta','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"')})()}</div>`;
   h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
      <div class="acts2"><button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button><button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button></div></div></div>`;
   h+=`<div class="hsec"><h3>Próximas acciones (7 días)</h3>${due.length?due.slice(0,30).map(s=>{const d=BYCODE.get(s.c);const c=d.cons.find(x=>x.ce===s.ce)||d.cons[0];
@@ -509,16 +511,16 @@ function renderH(){
 /* ---------- Excel ---------- */
 let XLSXP=null;
 function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(XLSXP)return XLSXP;XLSXP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=()=>res(window.XLSX);sc.onerror=()=>{XLSXP=null;rej(new Error('sin conexión'))};document.head.appendChild(sc)});return XLSXP}
-async function downloadXlsx(rows,name,btn){
-  const old=btn&&btn.textContent; if(btn){btn.textContent='Preparando…';btn.disabled=true}
+async function downloadXlsx(rows,name,btn){return busy(btn,()=>downloadXlsx_(rows,name),'Preparando el Excel…')}
+async function downloadXlsx_(rows,name){const btn=null;const old='';
   try{const X=await loadXLSX();
     const head=['CÓDIGO','NOMBRE','ESPECIALIDAD','ÁREA','PRIORIDAD','CENTRO','GRUPO','DIRECCIÓN','CP','MUNICIPIO','PROVINCIA','TELÉFONO',...DAYS,'CALIDAD UBICACIÓN','Nº CONSULTAS','OTRAS CONSULTAS','ÚLTIMA VISITA','RESULTADO','PRÓXIMA ACCIÓN','FECHA PRÓXIMA','CONTACTO'];
     const data=[head,...rows.map(([d,c])=>{const s=segOf(d.c)||{};return [d.c,d.n,d.e,d.a,d.top?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':''),c.ce,c.g,c.d,c.cp,c.m,c.p,c.tel||d.tel,...daysFor(d,c),d.q,d.cons.length,
       d.cons.filter(x=>x!==c).map(x=>[x.ce,x.d,x.m].filter(Boolean).join(', ')).join(' | '),fmtDate(s.ultima),s.res||'',s.prox||'',fmtDate(s.prox_f),s.contacto||'']})];
     const ws=X.utils.aoa_to_sheet(data);ws['!cols']=head.map((h,i)=>({wch:[8,32,20,20,26,30,22,30,7,20,12,14][i]||16}));ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:data.length-1,c:head.length-1}})};
-    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'MEDICOS');X.writeFile(wb,name);
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'MEDICOS');X.writeFile(wb,name);toast('Excel descargado');
   }catch(e){alert('No se ha podido crear el Excel: '+e.message+'. Hace falta conexión la primera vez.')}
-  finally{if(btn){btn.textContent=old;btn.disabled=false}}
+  finally{}
 }
 
 /* ---------- v1.2: búsqueda, ficha rápida, cerca de mí, resumen, calendario ---------- */
@@ -534,10 +536,11 @@ function quickSearch(q){const n=norm(q);if(n.length<2){$('qsr').hidden=true;retu
   const r=[];for(const d of DATA){if(norm(d.n).includes(n)||d.cons.some(c=>norm(c.ce).includes(n)||norm(c.m).includes(n)))r.push(d);if(r.length>=40)break}
   $('qsr').innerHTML=r.length?r.map(d=>`<button type="button" data-q="${d.c}"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}</div><div class="sm">${esc(d.e||'')} · ${esc(d.cons[0].ce||'')} · ${esc(d.cons[0].m||'')}</div></button>`).join(''):'<div class="sm" style="padding:12px">Sin resultados</div>';
   $('qsr').hidden=false;}
-function nearMe(){if(!navigator.geolocation){alert('Este dispositivo no permite obtener la ubicación.');return}
-  const b=$('nearBtn');if(b)b.textContent='Buscando tu ubicación…';
-  navigator.geolocation.getCurrentPosition(p=>{S.near=[p.coords.latitude,p.coords.longitude];S.tab='M';S.limit=100;if(b)b.textContent='Cerca de mí';render();window.scrollTo({top:0})},
-    e=>{if(b)b.textContent='Cerca de mí';alert(e.code===1?'Para usar "Cerca de mí", permite el acceso a la ubicación en los ajustes del navegador.':'No se ha podido obtener la ubicación. Inténtalo de nuevo.')},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});}
+function nearMe(btn){if(!navigator.geolocation){toast('Este dispositivo no permite obtener la ubicación',true);return}
+  const b=btn||$('nearBtn');return busy(b,()=>new Promise(done=>nearMe_(done)),'Buscando tu ubicación…')}
+function nearMe_(done){const b=null;
+  navigator.geolocation.getCurrentPosition(p=>{S.near=[p.coords.latitude,p.coords.longitude];S.tab='M';S.limit=100;done();render();window.scrollTo({top:0})},
+    e=>{done();alert(e.code===1?'Para usar "Cerca de mí", permite el acceso a la ubicación en los ajustes del navegador.':'No se ha podido obtener la ubicación. Inténtalo de nuevo.')},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});}
 function weekSummary(){
   const monday=new Date();monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const ms=monday.toISOString().slice(0,10);
   const vs=[];SEG.forEach(s=>(s.visitas||[]).forEach(v=>{if(v.f>=ms)vs.push({...v,c:s.c})}));
@@ -549,9 +552,6 @@ function weekSummary(){
   if(inter.length)t+=`\nInteresados o prescriben:\n`+[...new Set(inter)].map(d=>`· ${d.n} (${d.e||''})`).join('\n')+'\n';
   if(prox.length)t+=`\nPróximas acciones (7 días):\n`+prox.map(s=>`· ${fmtDate(s.prox_f)} ${BYCODE.get(s.c)?.n||s.n}: ${s.prox||'seguimiento'}`).join('\n')+'\n';
   return t;}
-async function shareWeek(){const t=weekSummary();
-  if(navigator.share){try{await navigator.share({title:'Resumen de la semana',text:t});return}catch(e){if(e.name==='AbortError')return}}
-  try{await navigator.clipboard.writeText(t);alert('Resumen copiado. Pégalo en WhatsApp o en un email.')}catch(e){prompt('Copia el resumen:',t)}}
 function icsDownload(title,date,hIni,hFin,desc,loc){
   const z=x=>String(x).padStart(2,'0');const dt=(d,h)=>d.replace(/-/g,'')+'T'+h.replace(':','')+'00';
   const esc2=x=>String(x||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
@@ -569,7 +569,7 @@ function estadoDeRes(r){return r==='Ya prescribe'?'Prescribe':(r==='Interesado'|
 function estadoDe(d){if(d.est)return d.est;const s=segOf(d.c);let best='';const ord=['Sin contactar','Presentado','Interesado','Prescribe'];
   (s&&s.visitas||[]).forEach(v=>{const e=estadoDeRes(v.res);if(e==='No interesado'){if(ord.indexOf(best)<2)best=e}else if(e&&ord.indexOf(e)>ord.indexOf(best))best=e});
   return best||'Sin contactar'}
-function setEstado(code,estado){const d=BYCODE.get(code);if(!d)return;d.est=estado;queueOp('estado',{c:code,estado},'c');render();if($('qdlg').open)openQuick(code)}
+function setEstado(code,estado){const d=BYCODE.get(code);if(!d)return;d.est=estado;queueOp('estado',{c:code,estado},'c');render();toast('Estado: '+estado);if($('qdlg').open)openQuick(code)}
 function renderFunnel(){
   const pool=DATA.filter(d=>d.a==='Aparato locomotor y dolor'||d.top||d.est||(segOf(d.c)&&segOf(d.c).ultima));
   const cnt={};ESTADOS.forEach(e=>cnt[e]=0);pool.forEach(d=>cnt[estadoDe(d)]++);const max=Math.max(1,...ESTADOS.slice(1).map(e=>cnt[e]));
@@ -601,12 +601,12 @@ async function renderMap(f){
 /* ---------- v1.3: check-in y tiempos reales ---------- */
 function chkGet(){try{return JSON.parse(localStorage.getItem('dlc_chk')||'null')}catch(e){return null}}
 function nowHM(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
-function checkIn(ce,m){localStorage.setItem('dlc_chk',JSON.stringify({ce,m,f:today(),ini:nowHM(),id:'t-'+Date.now()}));render()}
+function checkIn(ce,m){localStorage.setItem('dlc_chk',JSON.stringify({ce,m,f:today(),ini:nowHM(),id:'t-'+Date.now()}));render();toast('Llegada registrada a las '+nowHM())}
 function checkOut(){const k=chkGet();if(!k)return;const fin=nowHM();const min=Math.max(1,toMin(fin)-toMin(k.ini));
   let n=0;SEG.forEach(s=>(s.visitas||[]).forEach(v=>{if(v.f===k.f&&v.ce===k.ce)n++}));
   queueOp('tiempo',{id:k.id,f:k.f,ce:k.ce,m:k.m,ini:k.ini,fin,min,n});
   const loc=JSON.parse(localStorage.getItem('dlc_tiempos')||'[]');loc.push({min,n});localStorage.setItem('dlc_tiempos',JSON.stringify(loc.slice(-200)));
-  localStorage.removeItem('dlc_chk');render();alert(`Visita a ${k.ce} registrada: ${min} min${n?` y ${n} ${n===1?'médico':'médicos'}`:''}.`)}
+  localStorage.removeItem('dlc_chk');render();toast(`${k.ce}: ${min} min${n?` · ${n} ${n===1?'médico':'médicos'}`:''}`)}
 function chkBar(){const k=chkGet();const el=$('chkBar');if(!k||k.f!==today()){el.hidden=true;if(k&&k.f!==today())localStorage.removeItem('dlc_chk');return}
   el.hidden=false;el.innerHTML=`<span>En ${esc(k.ce)} desde las ${k.ini}</span><button type="button" class="btn" id="chkOut">Termino aquí</button>`;$('chkOut').onclick=checkOut}
 function minPorMedico(){const rows=[];const T=(window.__RAWJ||{}).TIEMPOS;if(T){const I={};T.h.forEach((h,i)=>I[h]=i);T.rows.forEach(r=>{const m=+r[I['MINUTOS']],n=+r[I['MÉDICOS VISITADOS']];if(m&&n)rows.push({min:m,n})})}
@@ -630,6 +630,25 @@ function calidad(){const pool=DATA.filter(enPool);const res=ISSUES.map(([k,t,f])
 function renderQuality(){const q=calidad();const max=Math.max(1,q.pool);
   $('quality').innerHTML=`<h3>Calidad de los datos</h3><p class="sm" style="margin:0 0 8px"><b>${q.pct}%</b> de fichas completas (${q.ok.toLocaleString('es')} de ${q.pool.toLocaleString('es')}): con dirección, teléfono, días de consulta y especialidad. Toca un punto para ver a quién le falta.</p>`+
     q.res.map(r=>`<button type="button" class="fstep" data-issue="${r.k}"><span class="sm" style="color:var(--ink)">${esc(r.t)}</span><span class="fb"><span style="width:${r.n/max*100}%;background:var(--warn)"></span></span><b>${r.n.toLocaleString('es')}</b></button>`).join('');}
+
+/* ---------- v1.3.2: avisos, carga, área, compartir ---------- */
+let TOASTT=null;
+function toast(msg,err){const t=$('toast');t.className='toast'+(err?' err':'');t.innerHTML=(err?'⚠ ':'✓ ')+esc(msg);t.hidden=false;clearTimeout(TOASTT);TOASTT=setTimeout(()=>{t.hidden=true},2400)}
+async function busy(btn,fn,label){if(!btn)return fn();if(btn.classList.contains('busy'))return;const old=btn.innerHTML;btn.classList.add('busy');btn.innerHTML='<span class="spin"></span> '+esc(label||btn.textContent.trim());
+  await new Promise(r=>setTimeout(r,40));try{return await fn()}finally{btn.classList.remove('busy');if(document.body.contains(btn))btn.innerHTML=old}}
+function areaOk(d){const a=S.areaSel;return a==='all'?true:a==='ap'?d.a==='Atención primaria':a==='otras'?(d.a!=='Aparato locomotor y dolor'&&d.a!=='Atención primaria'):d.a==='Aparato locomotor y dolor'}
+function setArea(v){S.areaSel=v;localStorage.setItem('dlc_area',v);if(P.plan)P.plan=buildPlan();render();toast('Médicos a incluir: '+({loc:'Aparato locomotor y dolor',all:'Todas las áreas',ap:'Atención primaria',otras:'Otras especialidades'})[v])}
+const ICO={visit:'<path d="M5 12l4 4L19 6"/>',sample:'<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6"/>',task:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',urg:'<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
+  sync:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/>',data:'<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/>',star:'<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>'};
+const icoStyle=(k,c)=>`--ico:url(&quot;data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${c||'#123A63'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${ICO[k]}</svg>`)}&quot;)`;
+function kpi(n,label,ico,cls,extra,attrs){return `<div class="kpi ${cls||''}" style="${icoStyle(ico,cls==='k-warn'?'#B45309':cls==='k-ok'?'#1F6F4A':'#123A63')}" ${attrs||''}><b>${n}</b><span>${label}</span>${extra||''}</div>`}
+function shareWeek(){$('shText').value=weekSummary();$('shTo').value=localStorage.getItem('dlc_shto')||'';$('shdlg').showModal()}
+function setupShare(){
+  $('shClose').onclick=()=>$('shdlg').close();
+  $('shCopy').onclick=async()=>{const t=$('shText').value;try{await navigator.clipboard.writeText(t);toast('Texto copiado')}catch(e){$('shText').select();document.execCommand&&document.execCommand('copy');toast('Texto copiado')}};
+  $('shMail').onclick=()=>{const to=$('shTo').value.trim();localStorage.setItem('dlc_shto',to);location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent('DLC · Resumen de la semana')+'&body='+encodeURIComponent($('shText').value)};
+  $('shWa').onclick=()=>{window.open('https://wa.me/?text='+encodeURIComponent($('shText').value),'_blank','noopener')};
+}
 
 /* ================= Plan del día ================= */
 const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};
@@ -708,7 +727,7 @@ function buildPlan(){
   for(const d of DATA){
     if(P.excl.has(d.c))continue;
     if(fc&&!fc.has(d.c))continue;
-    if(!fc&&P.loc&&d.a!=='Aparato locomotor y dolor'&&!d.top&&!d.cor)continue;
+    if(!fc&&!areaOk(d)&&!d.top&&!d.cor)continue;
     let placed=false,reason='sin ubicación en la zona',opt=[];
     for(const c of d.cons){
       if(P.foco==='T3'&&c.ce!=='CLINICA CORACHAN')continue;
@@ -771,6 +790,7 @@ function renderP(){
    <div><label for="pCo">Pausa para comer</label><select id="pCo"><option value="0" ${P.comer?'':'selected'}>No</option><option value="1" ${P.comer?'selected':''}>Sí</option></select></div>
    <div><label for="pCi">Comer a partir de</label><input type="time" id="pCi" value="${P.cIni}"></div>
    <div><label for="pCd">Minutos para comer</label><input type="number" id="pCd" min="15" max="120" value="${P.cDur}"></div>
+   <div class="wide"><label for="pAr">Médicos a incluir</label><select id="pAr"><option value="loc" ${S.areaSel==='loc'?'selected':''}>Aparato locomotor y dolor</option><option value="all" ${S.areaSel==='all'?'selected':''}>Todas las áreas</option><option value="ap" ${S.areaSel==='ap'?'selected':''}>Atención primaria</option><option value="otras" ${S.areaSel==='otras'?'selected':''}>Otras especialidades</option></select><div class="sm">Los urgentes y los contactos de Corachan entran siempre.</div></div>
    <div class="wide"><label for="pFo">Qué visitar</label><select id="pFo">${opts.map(([v,l])=>`<option value="${v}" ${P.foco===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
    <div class="wide"><button class="btn" id="pGo">Generar ruta del día</button></div></div>`;
   const pl=P.plan;
@@ -829,7 +849,7 @@ function grupo(c){ // misma lógica que el Excel para centros nuevos
 }
 let EDCODE=null;
 function consRow(c,i){
-  return `<fieldset class="ecr" data-i="${i}"><legend>${i===0?'Consulta principal':'Consulta '+(i+1)}</legend>
+  return `<fieldset class="ecr" data-i="${i}"><legend>${i===0?'Consulta principal':'Consulta '+(i+1)}${i>0?` <button type="button" class="rmx" data-rm="${i}">✕ Quitar</button>`:''}</legend>
    <div class="grid2"><div><label>Centro</label><div class="cbw"><input data-f="ce" data-cb="ce" autocomplete="off" value="${esc(c.ce||'')}" placeholder="Escribe o elige"><button type="button" class="cbt" tabindex="-1" aria-label="Ver lista">▾</button></div></div>
    <div><label>Municipio</label><div class="cbw"><input data-f="m" data-cb="muni" autocomplete="off" value="${esc(c.m||'')}"><button type="button" class="cbt" tabindex="-1" aria-label="Ver lista">▾</button></div></div></div>
    <div class="grid2"><div><label>Dirección</label><input data-f="d" value="${esc(c.d||'')}"></div><div><label>CP</label><input data-f="cp" value="${esc(c.cp||'')}" inputmode="numeric"></div></div>
@@ -837,7 +857,7 @@ function consRow(c,i){
    <div class="grid5">${DAYS.map((k,j)=>`<div><div class="sm">${DAYN[k]}</div><input data-dy="${j}" value="${esc(c.dy[j]||'')}" placeholder="9-13 / 16-19"></div>`).join('')}</div>
    <div class="qk">${DAYS.map((k,j)=>`<span>${k}</span><button type="button" data-q="${j}|Mañana">M</button><button type="button" data-q="${j}|Tarde">T</button>`).join('')}</div>
    <div class="grid2"><div><label>Teléfono de esta consulta</label><input data-f="tel" value="${esc(c.tel||'')}" inputmode="tel"></div>
-   <div style="display:flex;align-items:end;justify-content:flex-end">${i>0?`<button type="button" class="reg" data-rm="${i}">Quitar esta consulta</button>`:''}</div></div></fieldset>`;
+   <div style="display:flex;align-items:end;justify-content:flex-end"></div></div></fieldset>`;
 }
 let NEWD=null;
 function openEdit(code,nd){
@@ -867,7 +887,7 @@ async function saveEdit(){
     const nd={...NEWD,n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};addDoctor(nd);}
   else{const d=BYCODE.get(EDCODE);const want=urgOn?(motivo||'Marcado desde la app'):'';if(want!==(d.top||''))setUrgent(d.c,urgOn,motivo);}
   $('eSave').disabled=true;$('eMsg').textContent='Guardando…';
-  try{await DB.collection('fichas').doc(String(EDCODE)).set(doc);FICHA.set(EDCODE,doc);applyFicha(EDCODE);$('edlg').close();afterEdit();}
+  try{await DB.collection('fichas').doc(String(EDCODE)).set(doc);FICHA.set(EDCODE,doc);applyFicha(EDCODE);$('edlg').close();afterEdit();toast(NEWD?'Médico añadido':'Ficha guardada');}
   catch(e){$('eMsg').textContent=e.code==='quota_exceeded'?'No caben más fichas editadas. Pídeme que las pase al Excel y las archive.':'No se ha podido guardar ('+(e.code||'error')+'). Inténtalo de nuevo.';$('eSave').disabled=false}
 }
 function addDoctor(nd){DATA.push(nd);BYCODE.set(nd.c,nd);ORIG.set(nd.c,JSON.stringify({cons:nd.cons,e:nd.e,tel:nd.tel,q:nd.q,a:nd.a}))}
@@ -877,7 +897,7 @@ function openNew(){const c=Number('9'+String(Date.now()).slice(-10));openEdit(c,
 function setUrgent(code,on,motivo){const d=BYCODE.get(code);if(!d)return;
   d.top=on?(motivo||'Marcado desde la app'):'';
   const pr=on?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':'');
-  if(typeof queueOp==='function')queueOp('prioridad',{c:code,prioridad:pr},'c');render();
+  if(typeof queueOp==='function')queueOp('prioridad',{c:code,prioridad:pr},'c');render();toast(on?'Marcado como urgente':'Quitado de urgentes');
   if($('qdlg').open)openQuick(code);}
 function afterEdit(){ if(S.tab==='P'&&P.plan){P.plan=buildPlan();} render(); }
 async function saveScheduleFromVisit(code,ce,horario){ // el horario captado en una visita también actualiza la ficha
@@ -1010,12 +1030,12 @@ async function setupDb(){
   buildFromSheet(); render(); syncUI(); flush();
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
-  $('syncBtn').onclick=()=>{flush().then(checkUpdates)};
+  $('syncBtn').onclick=e=>busy(e.target,async()=>{await flush();await checkUpdates();toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
   $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').textContent=`Versión ${window.__APPVER||''} · datos de ${window.__RAWJ&&window.__RAWJ.hora?new Date(window.__RAWJ.hora).toLocaleString('es'):'—'}`;$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);$('cfgDlg').close();render()};
   $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
   $('cfgSave').onclick=()=>{const u=$('cfgUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)){$('cfgMsg').textContent='La dirección debe empezar por https://script.google.com/macros/s/ y acabar en /exec.';return}localStorage.setItem('dlc_cfg',JSON.stringify({url:u,t:$('cfgT').value.trim()}));location.reload()};
-  $('cfgReload').onclick=async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} window.__reloadData&&window.__reloadData()};
+  $('cfgReload').onclick=e=>busy(e.target,async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} await (window.__reloadData&&window.__reloadData())},'Descargando…');
   $('newDataBtn').onclick=()=>location.reload();
   checkUpdates();
 }
