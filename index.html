@@ -486,6 +486,48 @@ h3[tabindex="-1"]:focus{outline:none}
 .cfgpage .pstate{display:flex;gap:6px;align-items:center;font-size:13px;margin-top:6px}
 .cfgpage .kchip input{width:auto!important;min-height:0!important}
 @media (max-width:760px){.cfgpage .kgrid{grid-template-columns:1fr}.cfgpage .grid2{grid-template-columns:1fr}.cfgpage{padding:4px 12px 14px!important}}
+
+/* ---------- v1.7: navegación ---------- */
+#modSel{display:none!important}
+.gnav{display:flex;gap:2px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.gnav button{border:0;background:none;padding:9px 14px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer;font-size:15px}
+.gnav button[aria-selected=true]{background:var(--sky-soft);color:var(--navy)}
+.gnav .soon{opacity:.55;cursor:not-allowed;font-weight:500}.gnav .soon i{font-style:normal;font-size:10.5px;font-weight:700;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:4px}
+.gsep{width:1px;height:22px;background:var(--line);margin:0 6px}
+.subnav{display:none;gap:6px}.subnav.on{display:flex}
+.subnav button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px;font-weight:600;color:var(--navy);cursor:pointer}
+.subnav button[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.topbar{flex-wrap:wrap;row-gap:8px}
+.rbar{position:sticky;top:0;z-index:60;background:#1F8A5B;color:#fff;border-radius:12px;padding:10px 14px;margin:0 0 12px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 6px 16px rgba(31,138,91,.25)}
+.rbar b{font-size:15px}.rbar .rt{font-variant-numeric:tabular-nums;font-weight:700;background:rgba(255,255,255,.18);border-radius:999px;padding:2px 10px}
+.rbar button{border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}.rbar .rv{background:#fff;color:#1F6F4A}.rbar .rf{background:#0F5132;color:#fff}
+@media (max-width:760px){.gnav{display:none}.subnav.on{display:flex;margin:0 0 6px}.bnav{grid-template-columns:repeat(5,1fr)!important}.rbar{top:env(safe-area-inset-top,0px)}}
+
+/* ---------- v1.7: rutas, inicio, resultados y días ---------- */
+.rcard{text-align:left}
+.racts{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}
+.rgo{font-weight:700;color:#1F6F4A;font-size:13px}.rdet{font-size:12.5px;color:var(--navy);text-decoration:underline;cursor:pointer}
+.hroutes{padding:0!important;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))!important}
+.recs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.rec{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px;cursor:pointer}
+.rec:hover{border-color:var(--navy)}.rec .ri{font-size:22px}.rec b{display:block;color:var(--navy)}.rec .rn{font-weight:800;color:var(--navy);font-size:18px;background:var(--sky-soft);border-radius:999px;padding:2px 10px}
+.rsec2{margin-top:18px}.rsec2>h4{margin:0 0 4px;color:var(--navy)}.rsec2>p{margin:0 0 8px}
+.rgrid{display:flex;flex-direction:column;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}
+.dsel button{min-width:40px}.rprev{border-top:1px solid var(--line);padding-top:10px;color:var(--navy)}
+.resg .resb{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.resb button{justify-content:flex-start!important;text-align:left!important;min-height:46px!important;padding:10px 12px!important;gap:8px;position:relative}
+.resb button::before{content:"";width:16px;height:16px;border:2px solid var(--line);border-radius:5px;flex:0 0 auto;background:#fff}
+.resg.neg .resb button::before{border-radius:50%}
+.resb button[aria-pressed=true]::before{border-color:#fff;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231F6F4A' stroke-width='4'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat}
+.dpick{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--bg);margin-top:6px}
+.dpq{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.dpq button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;color:var(--navy);cursor:pointer}
+.dpg{display:grid;grid-template-columns:90px 1fr 1fr;gap:6px 8px;align-items:center}.dph{font-size:12px;color:var(--muted);font-weight:700}
+.dpg b{font-size:13.5px;color:var(--ink);font-weight:600}
+.dpc{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.dpt{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;font-weight:600;color:var(--muted);cursor:pointer;min-width:84px;text-align:left}
+.dpt[aria-pressed=true]{background:var(--navy);border-color:var(--navy);color:#fff}
+.dpc select{width:auto!important;min-height:0!important;padding:6px 8px!important;font-size:13px}
+@media (max-width:760px){.resg .resb{grid-template-columns:1fr!important}.dpg{grid-template-columns:70px 1fr 1fr}.dpt{min-width:0}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -493,9 +535,10 @@ h3[tabindex="-1"]:focus{outline:none}
 <div class="wrap">
   <header class="top">
     <div class="brand"><img src="logo.png" alt="DLC Health Group" class="logo"><div><h1><select id="modSel" class="mod" aria-label="Módulo"><option value="rutas" selected>Rutas y médicos</option><option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option></select></h1><p id="sub"></p></div></div>
-    <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="cfgK">Configuración</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
+    <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="admBtn" style="display:none">Administración</button><button type="button" class="reg" id="cfgK">Configuración</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
   </header>
   <div class="qs"><input id="qs" type="search" placeholder="Buscar médico, centro o municipio" autocomplete="off" spellcheck="false" enterkeyhint="search"><div class="qsr" id="qsr" hidden></div></div>
+  <div class="rbar" id="rutaBar" hidden></div>
   <div class="upd" id="updBar" hidden></div>
   <div class="chk" id="chkBar" hidden></div>
   <div class="warn" id="newData" hidden style="margin:0 0 12px">Hay datos nuevos en la hoja de Google. <button type="button" class="reg" id="newDataBtn">Actualizar ahora</button></div>
@@ -511,7 +554,11 @@ h3[tabindex="-1"]:focus{outline:none}
   </section>
 
   <div class="bar topbar">
-        <div class="tabs" role="tablist">
+        <div class="gnav" id="gnav" role="tablist">
+          <button type="button" data-g="H">Inicio</button><button type="button" data-g="G">Agenda</button><button type="button" data-g="RT">Rutas</button><button type="button" data-g="DR">Directorio</button><button type="button" data-g="S">Seguimiento</button>
+          <span class="gsep"></span><button type="button" class="soon" disabled>Facturación <i>Pronto</i></button><button type="button" class="soon" disabled>Pacientes <i>Pronto</i></button><button type="button" class="soon" disabled>Métricas <i>Pronto</i></button>
+        </div>
+        <div class="tabs" role="tablist" style="display:none">
           <button role="tab" id="tabH" aria-selected="true">Hoy</button>
           <button role="tab" id="tabG" aria-selected="false">Agenda</button>
           <button role="tab" id="tabC" aria-selected="false">Centros</button>
@@ -522,6 +569,7 @@ h3[tabindex="-1"]:focus{outline:none}
           <button role="tab" id="tabA" aria-selected="false" style="display:none">Administración</button>
           <button role="tab" id="tabK" aria-selected="false" style="display:none">Configuración</button>
         </div>
+        <div class="subnav" id="subnav"></div>
         <div class="count" id="count"></div>
         <button type="button" class="fbtn" id="fBtn">Filtros</button>
       </div>
@@ -619,7 +667,7 @@ h3[tabindex="-1"]:focus{outline:none}
       <dialog id="dlg"><form method="dialog" id="dlgForm" class="fi">
         <h3 id="dlgTitle" tabindex="-1" autofocus></h3><div class="sm" id="dlgSub"></div>
         <div class="vwhen" id="vWhen"></div><input type="hidden" id="vFecha">
-        <label>Resultado de la visita</label><div id="vResB"></div><select id="vRes" hidden></select>
+        <label>Resultado de la visita <span class="sm">· puedes marcar varios de "Visita realizada"</span></label><div id="vResB"></div><input type="hidden" id="vRes">
         <label for="vMu">Muestras de DOLNER entregadas</label><input id="vMu" type="number" min="0" max="99" inputmode="numeric" placeholder="0">
         <label for="vCentro">Centro de la visita</label><select id="vCentro"></select>
         <label>Días y horario de consulta (p. ej. Mañana 9:00-13:00)</label>
@@ -638,13 +686,15 @@ h3[tabindex="-1"]:focus{outline:none}
 </div>
 
 
-<nav class="bnav" id="bnav"><button type="button" data-tab="H"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Hoy</span></button><button type="button" data-tab="G"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="15" r="1"/></svg><span>Agenda</span></button><button type="button" data-tab="C"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M9 20v-5h6v5M9 11h.01M15 11h.01"/></svg><span>Centros</span></button><button type="button" data-tab="M"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Médicos</span></button><button type="button" data-tab="P"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg><span>Plan</span></button><button type="button" data-tab="R"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/></svg><span>Rutas</span></button><button type="button" data-tab="S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/><path d="M5 19h14"/></svg><span>Seguim.</span></button></nav>
+<nav class="bnav" id="bnav"><button type="button" data-g="H"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Inicio</span></button><button type="button" data-g="G"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg><span>Agenda</span></button><button type="button" data-g="RT"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/></svg><span>Rutas</span></button><button type="button" data-g="DR"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Directorio</span></button><button type="button" data-g="S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/><path d="M5 19h14"/></svg><span>Seguim.</span></button></nav>
 <div class="toast" id="toast" hidden></div>
 <div class="pov" id="pov" hidden><div class="ptxt" id="povT"></div><div class="pbar"><i id="povB"></i></div></div>
-<dialog id="shdlg"><div class="fi" style="padding:18px"><h3>Resumen de la semana</h3><p class="sm" style="margin:2px 0 8px">Puedes editar el texto antes de copiarlo o enviarlo.</p>
+<dialog id="shdlg"><div class="fi" style="padding:18px"><div class="cfgh"><h3>Compartir resumen de la semana</h3><button type="button" class="xbtn" id="shClose" aria-label="Cerrar">✕</button></div>
+<div class="seg" id="shCanal" style="margin:6px 0 10px"><button type="button" data-canal="wa" aria-pressed="true">WhatsApp</button><button type="button" data-canal="email" aria-pressed="false">Email</button></div>
+<div id="shEmailF" hidden><div class="grid2"><div><label for="shTo">Para</label><input id="shTo" type="email" placeholder="nombre@empresa.com"></div><div><label for="shSubj">Asunto</label><input id="shSubj"></div></div></div>
+<label for="shText">Mensaje <span class="sm">(puedes editarlo antes de enviar; la plantilla se cambia en Configuración → Mis preferencias)</span></label>
 <textarea id="shText" rows="14" style="width:100%;font:13.5px/1.45 ui-monospace,Menlo,Consolas,monospace"></textarea>
-<label for="shTo">Enviar por email a (opcional)</label><input id="shTo" type="email" placeholder="nombre@empresa.com">
-<div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="shClose">Cerrar</button><button type="button" class="btn sec" id="shWa">WhatsApp</button><button type="button" class="btn sec" id="shMail">Email</button><button type="button" class="btn" id="shCopy">Copiar</button></div></div></dialog>
+<div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="shCopy">Copiar</button><button type="button" class="btn" id="shSend">Abrir WhatsApp</button></div></div></dialog>
 <dialog id="udlg"><div class="fi" style="padding:18px" id="ubody"></div></dialog>
 <dialog id="qdlg"><div class="fi" style="padding:18px"><div id="qbody"></div><div class="acts"><button type="button" class="btn sec" id="qClose">Cerrar</button></div></div></dialog>
 <dialog id="cfgDlg"><div class="fi cfg" style="padding:18px">
@@ -661,7 +711,7 @@ h3[tabindex="-1"]:focus{outline:none}
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.6.1';
+window.__APPVER='1.7.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -725,7 +775,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.6.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.7.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){
