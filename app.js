@@ -300,7 +300,9 @@ function openDlg(code,ce){
   const d=BYCODE.get(code),s=segOf(code)||{};DLGCODE=code;
   $('dlgTitle').textContent=d.n;$('dlgSub').textContent=d.e+(DB?'':' · Registro no disponible fuera de Claude');
   $('vFecha').value=today();$('vWhen').innerHTML=`Hoy, ${fmtDate(today())} <span class="sm">· se guarda la hora del registro</span>`;fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';$('vMu').value='';$('vCal').checked=false;
-  $('vResB').innerHTML=RESULTS.map(r=>`<button type="button" data-res="${esc(r)}" aria-pressed="false">${esc(r)}</button>`).join('');
+  const POS=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe'],NEG=RESULTS.filter(r=>!POS.includes(r));
+  const grp=(t,cls,l)=>`<div class="resg ${cls}"><div class="sm">${t}</div><div class="resb">${l.map(r=>`<button type="button" data-res="${esc(r)}" aria-pressed="false">${esc(r)}</button>`).join('')}</div></div>`;
+  $('vResB').innerHTML=grp('Visita realizada','pos',POS)+grp('Sin visita o sin interés','neg',NEG);
   const ces=uniq(d.cons.map(c=>c.ce).concat(ce||[]));$('vCentro').innerHTML=ces.map(x=>`<option>${esc(x)}</option>`).join('');$('vCentro').value=ce||s.ce||ces[0]||'';
   const c=d.cons.find(x=>x.ce===$('vCentro').value)||d.cons[0];
   $('vDias').innerHTML=DAYS.map((k,i)=>`<input aria-label="${DAYN[k]}" placeholder="${DAYN[k][0].toUpperCase()+DAYN[k].slice(1)}: p. ej. Mañana 9-13" data-k="${k}" value="${esc((s.horario&&s.horario[k])||(c&&c.dy[i])||'')}">`).join('');
@@ -349,7 +351,7 @@ function init(){
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
   on('nearBtn','click',e=>nearMe(e.target));
-  on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L)busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>render());else render()});
+  on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L){progress('Cargando el mapa',30);busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>{render();progressEnd()})}else render()});
   on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b||!tabOk('M'))return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b||!tabOk('M'))return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   document.addEventListener('change',e=>{const q=e.target.closest('[data-qest]');if(q)setEstado(+q.dataset.qest,q.value)});
@@ -524,15 +526,16 @@ function renderH(){
 /* ---------- Excel ---------- */
 let XLSXP=null;
 function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(XLSXP)return XLSXP;XLSXP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=()=>res(window.XLSX);sc.onerror=()=>{XLSXP=null;rej(new Error('sin conexión'))};document.head.appendChild(sc)});return XLSXP}
-async function downloadXlsx(rows,name,btn){return busy(btn,()=>downloadXlsx_(rows,name),'Preparando el Excel…')}
+async function downloadXlsx(rows,name,btn){return busy(btn,async()=>{progress('Preparando el Excel',10);await downloadXlsx_(rows,name)},'Preparando el Excel…')}
 async function downloadXlsx_(rows,name){const btn=null;const old='';
-  try{const X=await loadXLSX();
+  try{const X=await loadXLSX();progress('Preparando el Excel',45);await new Promise(r=>setTimeout(r,30));
     const head=['CÓDIGO','NOMBRE','ESPECIALIDAD','ÁREA','PRIORIDAD','CENTRO','GRUPO','DIRECCIÓN','CP','MUNICIPIO','PROVINCIA','TELÉFONO',...DAYS,'CALIDAD UBICACIÓN','Nº CONSULTAS','OTRAS CONSULTAS','ÚLTIMA VISITA','RESULTADO','PRÓXIMA ACCIÓN','FECHA PRÓXIMA','CONTACTO'];
     const data=[head,...rows.map(([d,c])=>{const s=segOf(d.c)||{};return [d.c,d.n,d.e,d.a,d.top?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':''),c.ce,c.g,c.d,c.cp,c.m,c.p,c.tel||d.tel,...daysFor(d,c),d.q,d.cons.length,
       d.cons.filter(x=>x!==c).map(x=>[x.ce,x.d,x.m].filter(Boolean).join(', ')).join(' | '),fmtDate(s.ultima),s.res||'',s.prox||'',fmtDate(s.prox_f),s.contacto||'']})];
+    progress('Preparando el Excel',75);await new Promise(r=>setTimeout(r,30));
     const ws=X.utils.aoa_to_sheet(data);ws['!cols']=head.map((h,i)=>({wch:[8,32,20,20,26,30,22,30,7,20,12,14][i]||16}));ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:data.length-1,c:head.length-1}})};
-    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'MEDICOS');X.writeFile(wb,name);toast('Excel descargado');
-  }catch(e){alert('No se ha podido crear el Excel: '+e.message+'. Hace falta conexión la primera vez.')}
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'MEDICOS');X.writeFile(wb,name);progressEnd('Excel descargado');
+  }catch(e){$('pov').hidden=true;toast('No se ha podido crear el Excel: hace falta conexión',true)}
   finally{}
 }
 
@@ -646,6 +649,8 @@ function renderQuality(){const q=calidad();const max=Math.max(1,q.pool);
 
 /* ---------- v1.3.2: avisos, carga, área, compartir ---------- */
 let TOASTT=null;
+function progress(txt,p){const o=$('pov');o.hidden=false;$('povT').textContent=txt+(p!=null?' · '+Math.round(p)+'%':'');$('povB').style.width=(p==null?35:p)+'%';$('povB').parentElement.classList.toggle('ind',p==null)}
+function progressEnd(msg){$('povB').style.width='100%';$('povB').parentElement.classList.remove('ind');setTimeout(()=>{$('pov').hidden=true;if(msg)toast(msg)},350)}
 function toast(msg,err){const t=$('toast');const info=err==='info';t.className='toast'+(err===true?' err':'')+(info?' info':'');t.innerHTML=(info?'':err?'⚠ ':'✓ ')+esc(msg);t.hidden=false;clearTimeout(TOASTT);TOASTT=setTimeout(()=>{t.hidden=true},2400)}
 async function busy(btn,fn,label){if(!btn)return fn();if(btn.classList.contains('busy'))return;const old=btn.innerHTML;btn.classList.add('busy');btn.innerHTML='<span class="spin"></span> '+esc(label||btn.textContent.trim());
   await new Promise(r=>setTimeout(r,40));try{return await fn()}finally{btn.classList.remove('busy');if(document.body.contains(btn))btn.innerHTML=old}}
@@ -667,10 +672,10 @@ function setupShare(){
 function datosTxt(){const h=window.__RAWJ&&window.__RAWJ.hora;return h?'Datos actualizados el '+new Date(h).toLocaleString('es',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):''}
 function urgSeg(){const on=$('eUrg').checked;$('eUrgSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.u==='1')===on)));$('eUrgM').disabled=!on;if(!on)$('eUrgM').placeholder='Solo si es urgente';else $('eUrgM').placeholder='Motivo de la urgencia (opcional)'}
 async function checkVersion(manual){
-  if(!navigator.onLine)return;
+  if(!navigator.onLine){if(manual)toast('Sin conexión: no se puede comprobar',true);return}
   try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();
-    if(j.v&&j.v!==window.__APPVER){$('updBar').hidden=false;$('updBar').innerHTML=`<span>Hay una versión nueva de DLC OS (${esc(j.v)}). Tienes la ${esc(window.__APPVER)}.</span><button type="button" id="updGo">Actualizar ahora</button>`;$('updGo').onclick=e=>busy(e.target,updateNow,'Actualizando…')}
-    else if(manual)toast('Tienes la última versión ('+window.__APPVER+')');}catch(e){}
+    if(j.v&&j.v!==window.__APPVER){if(manual){toast('Hay una versión nueva: '+j.v,'info');if($('cfgDlg').open)$('cfgDlg').close()}$('updBar').hidden=false;$('updBar').innerHTML=`<span>Hay una versión nueva de DLC OS (${esc(j.v)}). Tienes la ${esc(window.__APPVER)}.</span><button type="button" id="updGo">Actualizar ahora</button>`;$('updGo').onclick=e=>busy(e.target,updateNow,'Actualizando…')}
+    else if(manual)toast('Tienes la última versión ('+window.__APPVER+')');}catch(e){if(manual)toast('No se ha podido comprobar: sin conexión',true)}
 }
 async function updateNow(){
   if(obxGet().length){await flush();if(obxGet().length&&!confirm('Hay cambios sin enviar. Se conservarán en este dispositivo. ¿Actualizar igualmente?'))return}
@@ -1180,9 +1185,12 @@ async function setupDb(){
   buildFromSheet(); render(); syncUI(); flush();
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
-  $('syncBtn').onclick=e=>busy(e.target,async()=>{await flush();await checkUpdates();toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
-  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b> <span class="sm">· usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</span>`;$('cfgAdmin').hidden=!USER.perm.admin;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML=`DLC OS · versión ${esc(window.__APPVER||'')} · ${esc(datosTxt()||'sin datos')} · <a href="#" id="cfgVer">Buscar actualizaciones</a>`;$('cfgVer').onclick=ev=>{ev.preventDefault();checkVersion(true)};$('cfgDlg').showModal()};
-  $('cfgClose').onclick=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);$('cfgDlg').close();render()};
+  $('syncBtn').onclick=e=>busy(e.target,async()=>{const n=obxGet().length;if(n)progress(`Enviando ${n} ${n===1?'cambio':'cambios'}`,null);await flush();if(n)$('pov').hidden=true;progress('Comprobando datos nuevos',null);await checkUpdates();$('pov').hidden=true;toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
+  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b><div class="sm">Usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</div>`;$('cfgAdminS').hidden=!USER.perm.admin;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML='';
+    $('cfgDatos').textContent=(datosTxt()||'Sin datos')+' · '+DATA.length.toLocaleString('es')+' médicos en este dispositivo'+(obxGet().length?' · '+obxGet().length+' cambios pendientes de enviar':'');$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'');$('cfgDlg').showModal()};
+  $('cfgClose').onclick=()=>{$('cfgDlg').close();render()};
+  $('cfgMaps').onchange=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);toast('Guardado: '+$('cfgMaps').selectedOptions[0].textContent)};
+  $('cfgVer').onclick=e=>busy(e.target,()=>checkVersion(true),'Buscando…');
   $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
   $('cfgOut').onclick=async()=>{if(obxGet().length){await flush()}if(obxGet().length&&!confirm('Hay cambios sin enviar en este dispositivo. Si cierras sesión se enviarán la próxima vez que entres con tu usuario. ¿Cerrar sesión?'))return;window.__logout()};
   $('cfgPass').onclick=()=>{$('cfgDlg').close();openPass()};
