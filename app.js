@@ -22,7 +22,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:'',asig:'',asignando:null,clas:{},dupf:false};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:'',asig:'',asignando:null,clas:{},dupf:false,mview:'lista'};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -118,7 +118,15 @@ const BASEROUTES=[
    {t:'Mañana',h:'9:30-13:30',anchors:[['ALTHAIA','MANRESA'],['CIMETIR','MANRESA']],zones:['m:MANRESA','m:SANTPEDOR','m:NAVARCLES','m:SANT FRUITOS DE BAGES','m:SANT VICENC DE CASTELLET']},
    {t:'Tarde',h:'16:00-19:30',anchors:[['MUTUA TERRASSA','TERRASSA'],['APTIMA','TERRASSA']],zones:['m:TERRASSA','m:OLESA DE MONTSERRAT','m:ESPARREGUERA','m:VILADECAVALLS','m:MATADEPERA']}]},
 ];
-const ROUTES=TOPROUTES.concat(BASEROUTES);
+let RT=[];
+function leerRutas(){const R=(window.__RAWJ&&window.__RAWJ.RUTAS)||{h:[],rows:[]};const I={};R.h.forEach((h,i)=>I[h]=i);
+  RT=R.rows.map(r=>({rid:r[I['ID']],nombre:r[I['NOMBRE']],tipo:r[I['TIPO']]||'Normal',u:String(r[I['USUARIO']]||'').toLowerCase(),visible:r[I['VISIBLE']]||'',codes:String(r[I['CÓDIGOS']]||'').split(',').map(x=>+x).filter(Boolean),desde:r[I['DESDE']]||'',nota:r[I['NOTA']]||''}))}
+leerRutas();
+let ROUTES=[];
+function buildRoutes(){const imp=new Set(RT.map(x=>(/origen:(T\d)/.exec(x.nota)||[])[1]).filter(Boolean));
+  const custom=RT.map(x=>({id:'X'+x.rid,rid:x.rid,custom:true,top:x.tipo==='Urgente',name:x.nombre,codes:x.codes,desde:x.desde,own:x.u===String(USER.usuario||'').toLowerCase(),u:x.u,blocks:[{t:'Médicos de la ruta',codes:x.codes}]}));
+  ROUTES=[TOPROUTES[0]].concat(custom.filter(r=>r.top),TOPROUTES.slice(1).filter(r=>!imp.has(r.id)),custom.filter(r=>!r.top),BASEROUTES)}
+buildRoutes();
 const ANCHORKEYS=new Set(BASEROUTES.flatMap(r=>r.blocks.flatMap(b=>b.anchors.map(a=>a.join('|')))));
 const zoneOf=c=>c.m===BCN?(c.di?'d:'+c.di:null):'m:'+c.m;
 const CORD=DATA.filter(d=>d.cor);
@@ -130,6 +138,9 @@ function corSlots(d){
 }
 function corBestDay(){const n=[0,0,0,0,0];CORD.forEach(d=>{const ds=new Set(corSlots(d).map(x=>x.day));ds.forEach(i=>n[i]++)});return n.indexOf(Math.max(...n))}
 function routeDocs(b){
+  if(b.codes){const m=new Map();b.codes.forEach(code=>{const d=BYCODE.get(code);if(!d)return;const c=d.cons.find(x=>x.d||(x.ce&&x.ce!=='CONSULTA PRIVADA'))||d.cons[0];
+      const k=(c.ce||'Sin centro')+'|'+c.m;let a=m.get(k);if(!a){a={ce:c.ce||'Sin centro',m:c.m,addr:c.d||'',z:(c.m===BCN?'0'+(c.di||'zzz'):'1'+c.m),docs:[]};m.set(k,a)}if(!a.addr&&c.d)a.addr=c.d;a.docs.push([d,c])});
+    return {anchors:[...m.values()].sort((a,b)=>a.z.localeCompare(b.z)||b.docs.length-a.docs.length),fill:[],same:true}}
   if(b.dyn){ // urgentes pendientes, agrupados por centro y zona
     const m=new Map();
     DATA.forEach(d=>{if(!d.top||(segOf(d.c)&&segOf(d.c).ultima))return;const c=d.cons.find(x=>x.d||(x.ce&&x.ce!=='CONSULTA PRIVADA'))||d.cons[0];
@@ -168,6 +179,7 @@ function routeDocs(b){
 function sortDocs([a],[b]){const va=segOf(a.c)?.ultima?1:0,vb=segOf(b.c)?.ultima?1:0;return va-vb||PRIO_ORD[prio(a)]-PRIO_ORD[prio(b)]||a.n.localeCompare(b.n,'es')}
 function routeStats(r){
   const codes=new Set();
+  if(r.custom){let v=0,last='';r.codes.forEach(c=>{const s=segOf(c);const vv=s&&(s.visitas||[]).filter(x=>!r.desde||x.f>=r.desde);if(vv&&vv.length){v++;const l=vv[vv.length-1].f;if(l>last)last=l}});return {n:r.codes.length,v,last}}
   if(r.dyn){const all=DATA.filter(d=>d.top);const v=all.filter(d=>segOf(d.c)&&segOf(d.c).ultima).length;return {n:all.length,v,last:''};}
   if(r.cor){CORD.forEach(d=>codes.add(d.c));let v=0,last='';codes.forEach(c=>{const s=segOf(c);if(s&&s.ultima){v++;if(s.ultima>last)last=s.ultima}});return {n:codes.size,v,last};} r.blocks.forEach(b=>{const x=routeDocs(b);x.anchors.forEach(a=>a.docs.forEach(([d])=>codes.add(d.c)));});
   let v=0,last='';codes.forEach(c=>{const s=segOf(c);if(s&&s.ultima){v++;if(s.ultima>last)last=s.ultima}});
@@ -175,7 +187,7 @@ function routeStats(r){
 }
 function mapsUrl(stops){
   const s=stops.slice(0,9).map(x=>x.replace(/\|/g,' ')).join('|');
-  return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent('Santpedor')+'&destination='+encodeURIComponent('Santpedor')+'&travelmode=driving'+(s?'&waypoints='+encodeURIComponent(s):'');
+  return 'https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(ll(HOME))+'&destination='+encodeURIComponent(ll(BACK))+'&travelmode=driving'+(s?'&waypoints='+encodeURIComponent(s):'');
 }
 const place=(ce,m,addr)=>addr?`${addr}, ${m}`:`${ce}, ${m}`;
 
@@ -228,6 +240,8 @@ function renderC(){
 function dayBadges(dy){return `<div class="dy">${DAYS.map((k,i)=>`<span class="${dy[i]?'on':''}" title="${dy[i]?esc(DAYN[k]+': '+dy[i]):''}">${k}</span>`).join('')}</div>`}
 function renderM(){
   const f=filtered();
+  const dv=S.mview==='dups'&&PERM.admin;$('mdups').hidden=!dv;$('mlista').hidden=dv;if($('dupBtn')){$('dupBtn').style.display=PERM.admin?'':'none';$('dupBtn').setAttribute('aria-pressed',String(dv))}
+  if(dv){$('count').innerHTML='<b>Duplicados</b>';$('mdups').innerHTML=`<div style="padding:0 14px 14px"><button type="button" class="reg" id="dupBack" style="margin:12px 0 0">← Volver a la lista</button>${renderDups()}</div>`;if(DUPS==null&&!DUPERR)cargarDups();return}
   if(PERM.admin)asignBar(f);else $('asignBar').hidden=true;
   $('count').innerHTML=`<b>${f.length.toLocaleString('es')}</b> médicos`;
   {const nd=DATA.filter(d=>d.dup==='Pendiente de unificar').length;$('dupPill').hidden=!nd||S.dupf;$('dupPill').textContent=`⚠ ${nd} ${nd===1?'médico pendiente':'médicos pendientes'} de unificar`;}
@@ -257,13 +271,13 @@ function renderR(){
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   if(!S.route)S.route=sug.r.id;
   const cardFn=x=>`<button class="rcard${x.r.top?' topr':''}" data-r="${x.r.id}" aria-pressed="${S.route===x.r.id}"><h3>${esc(x.r.name)}${x===sug?'<span class="sug">siguiente</span>':''}</h3>
-    <div class="sm">${x.n} médicos ${x.r.top?'urgentes':'en sus centros'} · ${x.v} visitados${x.last?' · última '+fmtDate(x.last):''}</div><div class="prog"><span style="width:${x.n?x.v/x.n*100:0}%"></span></div></button>`;
+    <div class="sm">${x.n} médicos${x.r.custom?'':x.r.top?' urgentes':' en sus centros'} · ${x.v} visitados${x.last?' · última '+fmtDate(x.last):''}</div><div class="prog"><span style="width:${x.n?x.v/x.n*100:0}%"></span></div><div class="rpct"><b>${x.n?Math.round(x.v/x.n*100):0}%</b> completado${x.r.custom?(x.r.dyn?'':' · '+(x.r.own?'tuya':'de '+esc(x.r.u))):x.r.dyn?' · sugerida':''}</div></button>`;
   $('routes').innerHTML=`<div class="rsec urg"><h3>Rutas urgentes</h3><p class="sm">Urgentes (marcados en la app o en la lista) y contactos de Corachan. Van antes que el ciclo hasta completarlas.</p></div>`+stats.filter(x=>x.r.top).map(cardFn).join('')+`<div class="rsec"><h3>Ciclo de rutas</h3><p class="sm">6 días que se repiten cada dos semanas (3 días por semana).</p></div>`+stats.filter(x=>!x.r.top).map(cardFn).join('');
-  const r=ROUTES.find(x=>x.id===S.route); const blocks=r.blocks.map(b=>({b,...routeDocs(b)}));
+  let r=ROUTES.find(x=>x.id===S.route);if(!r){S.route=ROUTES[0].id;r=ROUTES[0]} const blocks=r.blocks.map(b=>({b,...routeDocs(b)}));
   const stops=[];
   blocks.forEach(x=>{x.anchors.forEach(a=>stops.push(a.q||place(a.ce,a.m,a.addr)));x.fill.forEach(([d,c])=>{if(S.picks.has(d.c))stops.push(place(c.ce,c.m,c.d))});});
   const ustops=[...new Set(stops)];
-  let h=`<div class="dayhead"><h3>${esc(r.name)}</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" target="_blank" rel="noopener" href="${esc(mapsUrl(ustops))}">Abrir recorrido en Google Maps</a></div></div>
+  let h=`<div class="dayhead"><h3>${esc(r.name)}</h3><div style="display:flex;gap:8px;flex-wrap:wrap">${r.custom&&rutaEditable(r)?`<button type="button" class="btn sec" data-editruta="${esc(r.rid)}">✎ Editar ruta</button>`:''}<a class="btn" target="_blank" rel="noopener" href="${esc(mapsUrl(ustops))}">Abrir recorrido en Google Maps</a></div></div>
    <div class="sm">${ustops.length} paradas${ustops.length>9?' (Google Maps admite 9: se abren las 9 primeras)':''}. Marca médicos de "cerca" para añadir su consulta al recorrido.</div>`;
   if(r.cor)h+=corAgenda();
   blocks.forEach(x=>{
@@ -361,7 +375,7 @@ function init(){
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
   on('nearBtn','click',e=>nearMe(e.target));
-  document.addEventListener('click',e=>{if(e.target.id==='mrBtn')openQuickRoute();if(e.target.id==='dupPill'){clearFilters();S.dupf=true;S.tab='M';S.limit=100;render()}
+  document.addEventListener('click',e=>{const er=e.target.closest('#day [data-editruta]');if(er){abrirRuta(er.dataset.editruta);return}if(e.target.id==='mrBtn')openQuickRoute();if(e.target.id==='dupPill'||e.target.id==='dupBtn'){if(PERM.admin){S.mview=S.mview==='dups'&&e.target.id==='dupBtn'?'lista':'dups';DUPS=null;DUPERR=''}else{clearFilters();S.dupf=true}S.tab='M';S.limit=100;render();window.scrollTo({top:0})}
     const rv=e.target.closest('[data-revdup]');if(rv){revisarDup(+rv.dataset.revdup);return}
     const ru=e.target.closest('[data-run]');if(ru){const de=+ru.dataset.run,en=+ru.dataset.en;if(!confirm(`¿Unificar el código ${de} en el ${en}? No se puede deshacer desde la app.`))return;busy(ru,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}$('udlg').close();render();toast('Unificado')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
     const rn=e.target.closest('[data-rnd]');if(rn){const c=+rn.dataset.rnd;busy(rn,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){const d=BYCODE.get(c);if(d)d.dup='Revisado';$('udlg').close();render();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
@@ -381,7 +395,7 @@ function init(){
   document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();if(!can('urgente'))return;const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(confirm('¿Quitar a '+d.n+' de urgentes?'))setUrgent(d.c,false)}else{const m=prompt('Motivo para marcar como urgente (opcional):','');if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
-  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='dups'){ASEC='duplicados';DUPS=null;S.tab='A';render()}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
+  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='dups'){S.mview='dups';DUPS=null;DUPERR='';S.tab='M';render();window.scrollTo({top:0})}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
     const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
     const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;busy(p,()=>{P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})},'Calculando la ruta…')}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
@@ -608,7 +622,7 @@ function icsDownload(title,date,hIni,hFin,desc,loc){
   const a=document.createElement('a');a.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics);a.download='dlc-evento.ics';document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);}
 function planToCalendar(){const pl=P.plan;if(!pl||pl.error||!pl.stops.length)return;
   const lines=pl.stops.map(s=>s.lunch?`${hm(s.arr)} Pausa para comer`:`${hm(s.arr)} ${s.ct.ce==='CONSULTA PRIVADA'?'Consulta privada':s.ct.ce} (${s.ct.m}): ${s.seq.map(x=>x.d.n).join('; ')}`);
-  icsDownload('Ruta de visitas DLC',P.fecha,P.salida,hm(pl.llegada),lines.join('\n'),'Santpedor');}
+  icsDownload('Ruta de visitas DLC',P.fecha,P.salida,hm(pl.llegada),lines.join('\n'),HOME.n);}
 
 /* ---------- v1.3: estado comercial ---------- */
 const ESTADOS=['Sin contactar','Presentado','Interesado','Prescribe','No interesado'];
@@ -732,7 +746,7 @@ function setupV133(){
 /* ================= v1.4: permisos y administración ================= */
 const PERM=USER.perm||{admin:false,mods:{},tabs:{},acc:{}};
 const can=k=>!!(PERM.admin||(PERM.acc&&PERM.acc[k]));
-const tabOk=k=>k==='A'?!!PERM.admin:k==='K'?!!(PERM.admin||(PERM.tabs&&PERM.tabs.K)):!!(PERM.admin||(PERM.tabs&&PERM.tabs[k]&&PERM.mods&&PERM.mods.rutas));
+const tabOk=k=>k==='A'?!!PERM.admin:k==='K'?true:!!(PERM.admin||(PERM.tabs&&PERM.tabs[k]&&PERM.mods&&PERM.mods.rutas));
 const AREAS_UI=['H','G','C','M','P','R','S','K'];
 const TABS_ORD=['H','G','C','M','P','R','S'];
 const firstTab=()=>TABS_ORD.find(tabOk)||null;
@@ -742,7 +756,7 @@ function applyPerms(){
   TABS_ORD.forEach(k=>{const b=$('tab'+k);if(b)b.style.display=tabOk(k)?'':'none';const nb=document.querySelector(`#bnav [data-tab="${k}"]`);if(nb)nb.style.display=tabOk(k)?'':'none'});
   const n=TABS_ORD.filter(tabOk).length;$('bnav').style.gridTemplateColumns=`repeat(${Math.max(1,n)},1fr)`;
   const ms=$('modSel');if(ms){ms.innerHTML=(PERM.admin||(PERM.mods&&PERM.mods.rutas)?'<option value="rutas">Rutas y médicos</option>':'')+'<option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option>'+(PERM.admin?'<option value="admin">Administración</option>':'');ms.value=S.tab==='A'?'admin':'rutas'}
-  if($('cfgK'))$('cfgK').style.display=tabOk('K')?'':'none';
+
   ['newBtn'].forEach(id=>{if($(id))$(id).style.display=can('nuevo')?'':'none'});
   ['dlx','dl','dlSeg','dlFich'].forEach(id=>{if($(id)&&!can('excel'))$(id).style.display='none'});
   if($('nearBtn'))$('nearBtn').style.display=tabOk('M')?'':'none';
@@ -755,12 +769,11 @@ const PEST_N={K:'Configuración',H:'Hoy',G:'Agenda',C:'Centros',M:'Médicos',P:'
 const NIV_N=['Sin acceso','Ver','Editar','Completo'];
 const AREA_AYUDA={H:['','Ve su resumen','Además registra desde Hoy','Igual que Editar'],G:['','Ve su agenda','Además crea, reprograma y descarta citas','Igual que Editar'],C:['','Ve el ranking de centros','Igual que Ver','Igual que Ver'],M:['','Ve las fichas','Además edita fichas, urgentes y estado','Además da de alta médicos y exporta a Excel'],P:['','Consulta el plan','Además guarda rutas y hace check-in','Igual que Editar'],R:['','Ve las rutas','Igual que Ver','Igual que Ver'],S:['','Ve el seguimiento','Además registra visitas','Además exporta a Excel'],K:['','Ve los catálogos','Además añade, renombra, ordena y activa o desactiva valores','Además elimina valores y crea o elimina clasificadores']};
 const ACC_N={editar:'Editar fichas',registrar:'Registrar visitas y check-in',urgente:'Marcar urgentes',estado:'Cambiar estado comercial',nuevo:'Dar de alta médicos',excel:'Descargar Excel y CSV'};
-const ROLES_UI={'Administrador':{H:3,G:3,C:3,M:3,P:3,R:3,S:3,K:3},'Comercial':{H:2,G:2,C:1,M:2,P:2,R:1,S:2,K:0},'Solo consulta':{H:1,G:1,C:1,M:1,P:1,R:1,S:1,K:0}};
+const ROLES_UI={'Administrador':{H:3,G:3,C:3,M:3,P:3,R:3,S:3,K:3},'Comercial':{H:2,G:2,C:1,M:2,P:2,R:2,S:2,K:0},'Solo consulta':{H:1,G:1,C:1,M:1,P:1,R:1,S:1,K:0}};
 async function adminApi(params){const c=window.__cfg();const j=await window.__api({s:c.t,...params},40000);if(!j.ok&&j.error==='sesion'){sesionCaducada();throw new Error('sesión')}return j}
 function renderA(){
   $('count').innerHTML='';
-  const secs=`<div class="seg adseg">${[['usuarios','Usuarios'],['duplicados','Duplicados'+(DUPS&&DUPS.length?` (${DUPS.length})`:'')]].map(([k,t])=>`<button type="button" data-asec="${k}" aria-pressed="${ASEC===k}">${t}</button>`).join('')}</div>`;
-  if(ASEC==='duplicados'){$('admin').innerHTML=secs+renderDups();if(DUPS==null&&!DUPERR)cargarDups();return}
+  const secs=`<div class="seg adseg">${[['usuarios','Usuarios']].map(([k,t])=>`<button type="button" data-asec="${k}" aria-pressed="${ASEC===k}">${t}</button>`).join('')}</div>`;
   const nAs=u=>DATA.filter(d=>(d.asig||[]).includes(u)).length;
   $('admin').innerHTML=secs+`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
    <p class="sm">Los comerciales solo ven los médicos que les asignes y sus propias visitas. El administrador lo ve todo.</p>
@@ -930,7 +943,8 @@ let ASEC='usuarios';
 const SYS_T=['ESPECIALIDAD','AREA','RESULTADO','MOTIVO_URGENCIA'];
 const tiposCustom=()=>CAT.filter(x=>x.tipo==='__TIPO').sort((a,b)=>a.orden-b.orden).map(x=>({key:x.valor,label:x.valor,activo:x.activo}));
 const tipoLabel=k=>CAT_T[k]||k;
-let KED=null,KDRAFT=null,KLOAD=false,KERR='',KOK=false;
+let KED=null,KDRAFT=null,KLOAD=false,KERR='',KOK=false,KNEW={n:'',v:['','','']};
+const kNewLeer=()=>{if($('kTN'))KNEW.n=$('kTN').value;$('config').querySelectorAll('[data-knv]').forEach(i=>KNEW.v[+i.dataset.knv]=i.value)};
 async function cargarCat(){if(KLOAD)return;KLOAD=true;KERR='';renderK();
   try{const j=await adminApi({a:'catalogos'});if(j.ok){CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KOK=true}else KERR=j.error==='accion'?'El servidor todavía no tiene esta función. Publica la versión nueva del script (Implementar → Gestionar implementaciones → Nueva versión).':'El servidor ha respondido con un error: '+j.error+(j.detalle?' ('+j.detalle+')':'')}
   catch(e){KERR='No se ha podido contactar con el servidor. '+(navigator.onLine?'Detalle: '+e.message:'Estás sin conexión.')}
@@ -939,7 +953,7 @@ const canTodoK=()=>!!(PERM.admin||(PERM.acc&&PERM.acc.catalogosTodo));
 function kCard(k,label,custom){const items=CAT.filter(x=>x.tipo===k).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));const ed=KED===k;const puede=can('catalogos');
   if(!ed)return `<div class="kcard"><div class="khead"><div><h4>${esc(label)}</h4><div class="sm">${items.filter(x=>x.activo).length} valores activos${items.some(x=>!x.activo)?' · '+items.filter(x=>!x.activo).length+' desactivados':''}${custom?' · clasificador propio':''}</div></div><span class="kmode">Solo lectura</span></div>
     <div class="kchips">${items.map(x=>`<span class="kchip ${x.activo?'':'off'}">${esc(x.valor)}${k==='RESULTADO'?`<i class="${x.extra==='neg'?'neg':'pos'}"></i>`:''}</span>`).join('')||'<span class="sm">Sin valores todavía.</span>'}</div>
-    ${puede?`<div class="kacts">${custom&&canTodoK()?`<button type="button" class="btn sec danger" data-kdelt="${esc(k)}">Eliminar clasificador</button>`:''}<button type="button" class="btn sec" data-ked="${esc(k)}">✎ Editar</button></div>`:''}</div>`;
+    ${puede&&KOK?`<div class="kacts">${custom&&canTodoK()?`<button type="button" class="btn sec danger" data-kdelt="${esc(k)}">Eliminar clasificador</button>`:''}<button type="button" class="btn sec" data-ked="${esc(k)}">✎ Editar</button></div>`:''}</div>`;
   const d=KDRAFT;
   return `<div class="kcard editing"><div class="khead"><div><h4>${esc(label)}</h4><div class="sm">Cambia lo que necesites y pulsa Guardar.</div></div><span class="kmode on">Editando</span></div>
     <div class="klist">${d.map((x,i)=>`<div class="krow ${x.activo?'':'off'}"><span class="catord"><button type="button" class="reg" data-kmv="${i}" data-dir="-1" ${i?'':'disabled'}>↑</button><button type="button" class="reg" data-kmv="${i}" data-dir="1" ${i<d.length-1?'':'disabled'}>↓</button></span>
@@ -947,16 +961,25 @@ function kCard(k,label,custom){const items=CAT.filter(x=>x.tipo===k).sort((a,b)=
       <div class="seg kact"><button type="button" data-kact="${i}" data-v="1" aria-pressed="${x.activo}">Activo</button><button type="button" data-kact="${i}" data-v="0" aria-pressed="${!x.activo}">Inactivo</button></div>${canTodoK()?`<button type="button" class="xbtn kdel" data-kdel="${i}" title="Eliminar" aria-label="Eliminar">🗑</button>`:''}</div>`).join('')}</div>
     <div class="catadd"><input id="kNew" placeholder="Nuevo valor (pulsa Intro para añadir)"><button type="button" class="btn sec" id="kAdd">+ Añadir</button></div>
     <div class="kacts"><button type="button" class="btn sec" id="kCancel">Cancelar</button><button type="button" class="btn" id="kSave">Guardar cambios</button></div></div>`}
+let KSEC='prefs';
+const verClas=()=>!!(PERM.admin||(PERM.areas&&PERM.areas.K>=1));
 function renderK(){$('count').innerHTML='';
+  if(KSEC==='clas'&&!verClas())KSEC='prefs';if(KSEC==='rutas'&&!tabOk('R'))KSEC='prefs';
+  const secs=[['prefs','Mis preferencias']].concat(tabOk('R')?[['rutas','Rutas']]:[],verClas()?[['clas','Clasificadores']]:[]);
+  const top=`<div class="dayhead"><h3>Configuración</h3></div><div class="seg adseg">${secs.map(([k,t])=>`<button type="button" data-ksec="${k}" aria-pressed="${KSEC===k}">${t}</button>`).join('')}</div>`;
+  if(KSEC==='prefs'){$('config').innerHTML=top+renderPrefs();return}
+  if(KSEC==='rutas'){$('config').innerHTML=top+renderRutasCfg();return}
+  renderClas(top)}
+function renderClas(top){
   if(!KOK&&!KLOAD&&!KERR)setTimeout(cargarCat,0);
   const nivel=PERM.admin?3:(PERM.areas&&PERM.areas.K)||0;
-  let h=`<div class="dayhead"><h3>Configuración de la plataforma</h3>${canTodoK()?'<button type="button" class="btn" id="kNewT">+ Nuevo clasificador</button>':''}</div>
+  let h=top+`<div class="dayhead"><h4 style="margin:0">Clasificadores</h4>${canTodoK()?'<button type="button" class="btn" id="kNewT">+ Nuevo clasificador</button>':''}</div>
    <p class="sm">Tu nivel: <b>${['Sin acceso','Ver','Editar','Completo'][nivel]}</b> · ${['','solo consulta','puedes añadir, renombrar, ordenar y activar o desactivar valores','además puedes eliminar valores y crear o eliminar clasificadores'][nivel]}.</p>
    <p class="sm">Listas y clasificadores que usan todos los usuarios en fichas, visitas y filtros.${can('catalogos')?'':' Tienes permiso de consulta: para cambiarlos necesitas nivel Editar en Configuración.'}</p>`;
   if(KLOAD)h+='<div class="prog2"><div class="pbar ind"><i></i></div><div class="ptxt">Cargando los clasificadores del servidor…</div></div>';
   if(KERR)h+=`<div class="warn" style="margin:10px 0">${esc(KERR)} <button type="button" class="reg" id="kRetry">Reintentar</button></div>`;
   if(KED==='__nuevo')h+=`<div class="kcard editing"><div class="khead"><div><h4>Nuevo clasificador</h4><div class="sm">Por ejemplo "Tipo de centro" o "Idioma". Aparecerá en la ficha de cada médico y como filtro.</div></div><span class="kmode on">Nuevo</span></div>
-     <label for="kTN">Nombre</label><input id="kTN" placeholder="Tipo de centro"><label for="kTV">Valores (uno por línea)</label><textarea id="kTV" rows="5" placeholder="Hospital&#10;Clínica&#10;Consulta privada"></textarea>
+     <label for="kTN">Nombre</label><input id="kTN" placeholder="Tipo de centro" value="${esc(KNEW.n)}"><label>Valores</label><div class="klist">${KNEW.v.map((v,i)=>`<div class="krow2"><input data-knv="${i}" value="${esc(v)}" placeholder="Valor ${i+1}"><button type="button" class="xbtn" data-knx="${i}" aria-label="Quitar">✕</button></div>`).join('')}</div><button type="button" class="btn sec" id="kNvAdd" style="align-self:flex-start">+ Añadir otro valor</button>
      <div class="kacts"><button type="button" class="btn sec" id="kCancel">Cancelar</button><button type="button" class="btn" id="kCreate">Crear clasificador</button></div></div>`;
   h+='<div class="kgrid">'+SYS_T.map(k=>kCard(k,tipoLabel(k),false)).join('')+tiposCustom().map(t=>kCard(t.key,t.label,true)).join('')+'</div>';
   $('config').innerHTML=h;
@@ -971,12 +994,18 @@ async function kGuardar(btn){kLeer();const k=KED;const orig=CAT.filter(x=>x.tipo
   await busy(btn,async()=>{try{const j=await adminApi({a:'catlote',d:JSON.stringify({cambios})});if(!j.ok){$('pov').hidden=true;toast('No se ha podido guardar: '+j.error,true);return}
     CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KED=null;KDRAFT=null;renderK();progressEnd(`Guardado: ${cambios.length} ${cambios.length===1?'cambio':'cambios'}`)}catch(e){$('pov').hidden=true;toast('No se ha podido guardar: '+e.message,true)}},'Guardando…')}
 function setupCat(){
+  let rqt;$('config').addEventListener('input',e=>{if(e.target.id==='rQ'){clearTimeout(rqt);rqt=setTimeout(()=>{rLeer();const pos=e.target.selectionStart;renderK();const q=$('rQ');if(q){q.focus();try{q.setSelectionRange(pos,pos)}catch(_){}}},250)}});
   $('admin').addEventListener('click',e=>{const sec=e.target.closest('[data-asec]');if(sec){ASEC=sec.dataset.asec;renderA()}});
   $('config').addEventListener('click',e=>{const t=e.target;
+    const ks=t.closest('[data-ksec]');if(ks){KSEC=ks.dataset.ksec;renderK();return}
     if(t.id==='kRetry'){KERR='';cargarCat();return}
+    if(KSEC==='prefs'){prefsClick(e);return}
+    if(KSEC==='rutas'){rutasClick(e);return}
     if(!can('catalogos'))return;
     const ed=t.closest('[data-ked]');if(ed){if(KED&&!confirm('Tienes otro clasificador en edición sin guardar. ¿Descartar esos cambios?'))return;KED=ed.dataset.ked;KDRAFT=CAT.filter(x=>x.tipo===KED).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor)).map(x=>({valor:x.valor,original:x.valor,activo:x.activo,extra:x.extra}));renderK();return}
-    if(t.id==='kNewT'){KED='__nuevo';KDRAFT=null;renderK();setTimeout(()=>$('kTN')&&$('kTN').focus(),30);return}
+    if(t.id==='kNewT'){KED='__nuevo';KDRAFT=null;KNEW={n:'',v:['','','']};renderK();setTimeout(()=>$('kTN')&&$('kTN').focus(),30);return}
+    if(t.id==='kNvAdd'){kNewLeer();KNEW.v.push('');renderK();const l=[...$('config').querySelectorAll('[data-knv]')].pop();l&&l.focus();return}
+    const knx=t.closest('[data-knx]');if(knx){kNewLeer();KNEW.v.splice(+knx.dataset.knx,1);if(!KNEW.v.length)KNEW.v.push('');renderK();return}
     if(t.id==='kCancel'){KED=null;KDRAFT=null;renderK();return}
     if(t.id==='kAdd'){kLeer();const v=$('kNew').value.trim();if(!v)return;if(KDRAFT.some(x=>x.valor.toLowerCase()===v.toLowerCase())){toast('Ese valor ya está',true);return}KDRAFT.push({valor:v,original:'',activo:true,extra:KED==='RESULTADO'?'pos':''});renderK();$('kNew')&&$('kNew').focus();return}
     const mv=t.closest('[data-kmv]');if(mv){kLeer();const i=+mv.dataset.kmv,j=i+(+mv.dataset.dir);[KDRAFT[i],KDRAFT[j]]=[KDRAFT[j],KDRAFT[i]];renderK();return}
@@ -988,7 +1017,7 @@ function setupCat(){
       busy(kd,async()=>{try{const j=await adminApi({a:'catdel',tipo:KED,valor:x.original});if(!j.ok){toast('No se ha podido eliminar: '+j.error,true);return}CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KDRAFT.splice(i,1);renderK();toast('Eliminado: '+x.original)}catch(err){toast('No se ha podido eliminar: '+err.message,true)}},'…');return}
     const kt=t.closest('[data-kdelt]');if(kt&&canTodoK()){const k=kt.dataset.kdelt;if(!confirm(`¿Eliminar el clasificador "${k}" y todos sus valores? Los médicos conservarán el valor en la hoja, pero dejará de aparecer en fichas y filtros.`))return;
       busy(kt,async()=>{try{const j=await adminApi({a:'catdel',tipo:'__TIPO',valor:k});if(!j.ok){toast('No se ha podido eliminar: '+j.error,true);return}CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;renderK();toast('Clasificador eliminado')}catch(err){toast('No se ha podido eliminar: '+err.message,true)}},'Eliminando…');return}
-    if(t.id==='kCreate'){const n=$('kTN').value.trim();const vals=$('kTV').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    if(t.id==='kCreate'){kNewLeer();const n=KNEW.n.trim();const vals=KNEW.v.map(x=>x.trim()).filter(Boolean);
       if(!n){toast('Ponle un nombre',true);return}if(SYS_T.includes(n.toUpperCase())||tiposCustom().some(x=>x.key.toLowerCase()===n.toLowerCase())){toast('Ya existe un clasificador con ese nombre',true);return}
       const cambios=[{tipo:'__TIPO',valor:n,orden:tiposCustom().length+1,activo:true,extra:'custom'}].concat([...new Set(vals)].map((v,i)=>({tipo:n,valor:v,orden:i+1,activo:true,extra:''})));
       progress('Creando el clasificador',null);
@@ -1010,16 +1039,17 @@ function renderDups(){
     (PARES.length?PARES.map(p=>`<div class="duppar"><div>${dcard(p.a)}</div><div class="pct">${p.pct}%</div><div>${dcard(p.b)}</div>
      <div class="da"><button type="button" class="btn sec" data-nodup="${p.b.c}" data-par="1">No son el mismo</button><button type="button" class="btn sec" data-unif="${p.a.c}" data-en="${p.b.c}">Quedarse con el de la derecha</button><button type="button" class="btn" data-unif="${p.b.c}" data-en="${p.a.c}">Quedarse con el de la izquierda</button></div></div>`).join(''):'<p class="sm">No se han encontrado duplicados.</p>')}
   return h}
-async function cargarDups(btn){if(DUPLOAD)return;DUPLOAD=true;DUPERR='';return busy(btn,async()=>{try{const j=await adminApi({a:'dups'});if(j.ok){DUPS=j.pend.filter(p=>p.cand.length)}else{DUPS=[];DUPERR=j.error==='accion'?'El servidor todavía no tiene esta función: publica la versión nueva del script (Implementar → Nueva versión).':'No se ha podido cargar: '+j.error}}catch(e){DUPS=[];DUPERR='Sin conexión: los duplicados se consultan en el servidor.'}finally{DUPLOAD=false;if(S.tab==='A')renderA()}},'Actualizando…')}
+async function cargarDups(btn){if(DUPLOAD)return;DUPLOAD=true;DUPERR='';return busy(btn,async()=>{try{const j=await adminApi({a:'dups'});if(j.ok){DUPS=j.pend.filter(p=>p.cand.length)}else{DUPS=[];DUPERR=j.error==='accion'?'El servidor todavía no tiene esta función: publica la versión nueva del script (Implementar → Nueva versión).':'No se ha podido cargar: '+j.error}}catch(e){DUPS=[];DUPERR='Sin conexión: los duplicados se consultan en el servidor.'}finally{DUPLOAD=false;if(S.tab==='M')renderM()}},'Actualizando…')}
 function setupDups(){
-  $('admin').addEventListener('click',e=>{
+  $('mdups').addEventListener('click',e=>{
+    if(e.target.id==='dupBack'){S.mview='lista';render();return}
     if(e.target.id==='dRef'){DUPERR='';cargarDups(e.target);return}
-    if(e.target.id==='dScan'){progress('Buscando duplicados en toda la base',null);busy(e.target,async()=>{try{const j=await adminApi({a:'escanear'});if(j.ok){PARES=j.pares;renderA();progressEnd(`${j.pares.length} ${j.pares.length===1?'posible duplicado':'posibles duplicados'}`)}}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Buscando…');return}
+    if(e.target.id==='dScan'){progress('Buscando duplicados en toda la base',null);busy(e.target,async()=>{try{const j=await adminApi({a:'escanear'});if(j.ok){PARES=j.pares;renderM();progressEnd(`${j.pares.length} ${j.pares.length===1?'posible duplicado':'posibles duplicados'}`)}}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Buscando…');return}
     const u=e.target.closest('[data-unif]');if(u){const de=+u.dataset.unif,en=+u.dataset.en;if(!confirm(`¿Unificar el código ${de} en el ${en}? Se moverán sus consultas, visitas y citas, y el ${de} desaparecerá.`))return;
       busy(u,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}
         if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==de);if(PARES)PARES=PARES.filter(p=>p.a.c!==de&&p.b.c!==de);
-        const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}renderA();toast('Unificado. Los dispositivos se actualizarán en su próxima descarga.')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
-    const n=e.target.closest('[data-nodup]');if(n){const c=+n.dataset.nodup;busy(n,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==c);if(PARES&&n.dataset.par)PARES=PARES.filter(p=>p.b.c!==c);const d=BYCODE.get(c);if(d)d.dup='Revisado';renderA();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
+        const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}renderM();toast('Unificado. Los dispositivos se actualizarán en su próxima descarga.')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
+    const n=e.target.closest('[data-nodup]');if(n){const c=+n.dataset.nodup;busy(n,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==c);if(PARES&&n.dataset.par)PARES=PARES.filter(p=>p.b.c!==c);const d=BYCODE.get(c);if(d)d.dup='Revisado';renderM();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
 }
 
 /* ================= v1.5.2: ruta rápida desde el mapa ================= */
@@ -1028,14 +1058,14 @@ function openQuickRoute(){
   const f=(S.map&&LMAP?MAPVIS:filtered()).filter(([d,c])=>xyOf(c));if(!f.length){toast('No hay médicos visibles en el mapa',true);return}
   $('ubody').innerHTML=`<h3>Crear ruta con los médicos del mapa</h3><p class="sm">${f.length.toLocaleString('es')} médicos visibles en el mapa. La ruta empieza ahora.</p>
    <div class="grid2"><div><label for="qrH">Tiempo disponible</label><select id="qrH">${[1,1.5,2,3,4,5,6,8].map(h=>`<option value="${h}" ${h===3?'selected':''}>${String(h).replace('.',',')} h</option>`).join('')}</select></div>
-   <div><label for="qrS">Salida</label><select id="qrS"><option value="me">Desde mi ubicación</option><option value="home">Desde Santpedor</option></select></div></div>
+   <div><label for="qrS">Salida</label><select id="qrS"><option value="me">Desde mi ubicación</option><option value="home">Desde ${esc(HOME.n)}</option></select></div></div>
    <label for="qrP">Prioridad</label><select id="qrP">${Object.entries(PRIO_Q).map(([k,t])=>`<option value="${k}">${t}</option>`).join('')}</select>
    <div class="grid2"><div><label for="qrM">Minutos por médico</label><input id="qrM" type="number" min="5" max="60" value="${P.min||15}"></div><div><label for="qrC">Máx. médicos por parada</label><input id="qrC" type="number" min="1" max="20" value="${P.cap||6}"></div></div>
    <div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="button" class="btn" id="qrGo">Generar ruta</button></div>`;
   $('uCancel').onclick=()=>$('udlg').close();
   $('qrGo').onclick=e=>busy(e.target,async()=>{const o={mins:(+$('qrH').value||3)*60,prio:$('qrP').value,vis:Math.max(5,+$('qrM').value||15),cap:Math.max(1,+$('qrC').value||6)};
-    let start=[HOME.lat,HOME.lon],origen='Santpedor',me=false;
-    if($('qrS').value==='me'){try{const p=await new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:15000,maximumAge:60000}):rej(new Error('sin gps')));start=[p.coords.latitude,p.coords.longitude];origen='tu ubicación';me=true;S.near=start}catch(err){toast('No se ha podido obtener tu ubicación: salgo desde Santpedor',true)}}
+    let start=[HOME.lat,HOME.lon],origen=HOME.n,me=false;
+    if($('qrS').value==='me'){try{const p=await new Promise((res,rej)=>navigator.geolocation?navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:15000,maximumAge:60000}):rej(new Error('sin gps')));start=[p.coords.latitude,p.coords.longitude];origen='tu ubicación';me=true;S.near=start}catch(err){toast('No se ha podido obtener tu ubicación: salgo desde '+HOME.n,true)}}
     const pl=quickRoute(f,start,o);pl.origen=origen;pl.origenMe=me;pl.prioTxt=PRIO_Q[o.prio];
     if(!pl.stops.length){toast('No cabe ninguna visita en ese tiempo',true);return}
     P.fecha=today();P.salida=nowHM();P.plan=pl;$('udlg').close();S.map=false;S.tab='P';render();window.scrollTo({top:0});toast(`Ruta creada: ${pl.visitas} médicos en ${pl.stops.length} paradas`)},'Calculando la ruta…');
@@ -1069,8 +1099,97 @@ function revisarDup(c){const d=BYCODE.get(c);if(!d)return;const cands=String(d.d
    `<div class="acts"><button type="button" class="btn sec" id="uCancel">Cerrar</button></div>`;
   $('uCancel').onclick=()=>$('udlg').close();$('udlg').showModal()}
 
+/* ================= v1.6: preferencias y editor de rutas ================= */
+let PREF=null;
+function prefsDraft(){const p=USER.prefs||{};return {salida:p.salida?{...p.salida}:{nombre:'Santpedor',dir:'Santpedor',lat:41.7833,lon:1.8414},vuelta:p.vuelta?{...p.vuelta}:null}}
+function puntoHTML(k,x,titulo,inner){const body=`<div class="grid2"><div><label>Nombre</label><input data-pn="${k}" value="${esc(x?x.nombre||'':'')}" placeholder="p. ej. Casa, Oficina Manresa"></div><div><label>Dirección</label><input data-pd="${k}" value="${esc(x?x.dir||'':'')}" placeholder="Calle, número y población"></div></div>
+  <div class="sm">${x&&x.lat&&!x._cambio?'<span class="okg">✓ Ubicado</span> '+esc(x.dir||''):'<span style="color:#B45309">Sin ubicar: pulsa "Buscar dirección"</span>'}</div>
+  <div class="kacts" style="justify-content:flex-start"><button type="button" class="btn sec" data-pgeo="${k}">Buscar dirección</button><button type="button" class="btn sec" data-pgps="${k}">Usar mi ubicación actual</button></div>`;
+  return inner?body:`<div class="kcard"><div class="khead"><div><h4>${titulo}</h4><div class="sm">Dónde empiezas el día</div></div></div>${body}</div>`}
+function renderPrefs(){if(!PREF)PREF=prefsDraft();const mismo=!PREF.vuelta;
+  return `<p class="sm">Se guardan en tu usuario y se aplican en todos tus dispositivos: Plan del día, rutas y recorridos de Google Maps.</p>
+   <div class="kgrid">${puntoHTML('salida',PREF.salida,'Punto de salida')}
+   <div class="kcard"><div class="khead"><div><h4>Punto de llegada</h4><div class="sm">Dónde terminas el día</div></div></div>
+    <div class="seg" id="pVm"><button type="button" data-vm="1" aria-pressed="${mismo}">Volver al punto de salida</button><button type="button" data-vm="0" aria-pressed="${!mismo}">Otro sitio</button></div>
+    ${mismo?'':puntoHTML('vuelta',PREF.vuelta,'Llegada',true)}</div></div>
+   <div class="kacts"><button type="button" class="btn sec" id="pfCancel">Descartar cambios</button><button type="button" class="btn" id="pfSave">Guardar preferencias</button></div>`}
+function prefsLeer(){['salida','vuelta'].forEach(k=>{if(!PREF[k])return;const n=$('config').querySelector(`[data-pn="${k}"]`),d=$('config').querySelector(`[data-pd="${k}"]`);if(n)PREF[k].nombre=n.value.trim();if(d&&d.value.trim()!==(PREF[k].dir||'')){PREF[k].dir=d.value.trim();PREF[k]._cambio=true}})}
+function prefsClick(e){const t=e.target;
+  const vm=t.closest('[data-vm]');if(vm){prefsLeer();PREF.vuelta=vm.dataset.vm==='1'?null:(PREF.vuelta||{nombre:'',dir:'',lat:null,lon:null});renderK();return}
+  const g=t.closest('[data-pgeo]');if(g){prefsLeer();const k=g.dataset.pgeo;const x=PREF[k];if(!x.dir){toast('Escribe la dirección',true);return}
+    busy(g,async()=>{try{const j=await adminApi({a:'geo',q:x.dir});if(!j.ok){toast('No se ha encontrado esa dirección',true);return}Object.assign(x,{lat:j.lat,lon:j.lon,dir:j.dir,_cambio:false});if(!x.nombre)x.nombre=j.dir.split(',')[0];renderK();toast('Dirección encontrada')}catch(err){toast('Sin conexión',true)}},'Buscando…');return}
+  const gp=t.closest('[data-pgps]');if(gp){prefsLeer();const k=gp.dataset.pgps;busy(gp,()=>new Promise(res=>{if(!navigator.geolocation){toast('Sin GPS',true);res();return}
+    navigator.geolocation.getCurrentPosition(p=>{Object.assign(PREF[k],{lat:+p.coords.latitude.toFixed(6),lon:+p.coords.longitude.toFixed(6),dir:'Mi ubicación ('+p.coords.latitude.toFixed(4)+', '+p.coords.longitude.toFixed(4)+')',_cambio:false});if(!PREF[k].nombre)PREF[k].nombre='Mi ubicación';renderK();toast('Ubicación tomada');res()},()=>{toast('No se ha podido obtener la ubicación',true);res()},{enableHighAccuracy:true,timeout:15000})}),'Localizando…');return}
+  if(t.id==='pfCancel'){PREF=null;renderK();return}
+  if(t.id==='pfSave'){prefsLeer();for(const k of ['salida','vuelta']){const x=PREF[k];if(!x)continue;if(!x.lat||x._cambio){toast(`Pulsa "Buscar dirección" en el punto de ${k==='salida'?'salida':'llegada'} para ubicarlo`,true);return}}
+    const clean=x=>x?{nombre:x.nombre||'',dir:x.dir||'',lat:x.lat,lon:x.lon}:null;const d={salida:clean(PREF.salida),vuelta:clean(PREF.vuelta)};
+    busy(t,async()=>{try{const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
+      USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;
+      applyPrefs();PREF=null;if(P.plan&&!P.plan.quick)P.plan=buildPlan();renderK();toast('Preferencias guardadas')}catch(err){toast('Sin conexión: '+err.message,true)}},'Guardando…')}}
+/* ---- rutas ---- */
+let RED=null,RDRAFT=null,RQ='';
+const rutasTodo=()=>!!(PERM.admin||(PERM.acc&&PERM.acc.rutasTodo));
+const rutaEditable=r=>!!(r&&(rutasTodo()||(PERM.acc&&PERM.acc.rutas&&(r.own||String(r.u||'')===String(USER.usuario||'').toLowerCase()))));
+function renderRutasCfg(){
+  const puedeCrear=rutasTodo()||(PERM.acc&&PERM.acc.rutas);
+  const legacy=TOPROUTES.slice(1).filter(r=>ROUTES.some(x=>x.id===r.id));
+  let h=`<div class="dayhead"><h4 style="margin:0">Rutas</h4>${puedeCrear&&!RED?'<button type="button" class="btn" id="rNew">+ Nueva ruta</button>':''}</div>
+   <p class="sm">Crea rutas con los médicos que quieras. Las <b>urgentes</b> aparecen primero y el Plan del día las prioriza. El % de completado cuenta los médicos visitados desde la fecha de inicio.</p>`;
+  if(legacy.length&&rutasTodo())h+=`<div class="warn" style="margin:10px 0">Tienes ${legacy.length} rutas urgentes predefinidas que aún no se pueden editar. <button type="button" class="reg" id="rImp">Convertirlas en rutas editables</button></div>`;
+  if(RED)h+=rutaEditor();
+  h+='<div class="kgrid">'+ROUTES.filter(r=>r.custom).map(r=>{const s=routeStats(r);const x=RT.find(y=>y.rid===r.rid)||{};
+    return `<div class="kcard"><div class="khead"><div><h4>${esc(r.name)}</h4><div class="sm">${r.top?'<span class="topb">Urgente</span> ':''}${s.n} médicos · desde ${fmtDate(x.desde)||'—'} · ${r.own?'tuya':'de '+esc(r.u)}${x.visible==='*'?' · visible para todo el equipo':x.visible?' · compartida':''}</div></div><span class="kmode">${Math.round(s.n?s.v/s.n*100:0)}%</span></div>
+     <div class="prog"><span style="width:${s.n?s.v/s.n*100:0}%"></span></div>
+     <div class="kacts"><button type="button" class="btn sec" data-verruta="${esc(r.id)}">Ver ruta</button>${rutaEditable(r)?`<button type="button" class="btn sec danger" data-delruta="${esc(r.rid)}">Eliminar</button><button type="button" class="btn sec" data-editruta="${esc(r.rid)}">✎ Editar</button>`:''}</div></div>`}).join('')+'</div>';
+  if(!RT.length)h+='<p class="sm">Todavía no hay rutas creadas.</p>';
+  return h}
+function sugerenciasRuta(){const en=new Set(RDRAFT.codes);const out=[];const pr=new Set(pendientesRuta().map(x=>x.c));
+  DATA.forEach(d=>{if(en.has(d.c))return;const sg=segOf(d.c);let why='';if(d.top&&!(sg&&sg.ultima))why='Urgente sin visitar';else if(pr.has(d.c))why='Pendiente de ruta';else if(estadoDe(d)==='Interesado'&&!(sg&&sg.ultima>=addD(today(),-30)))why='Interesado sin visita reciente';if(why)out.push([d,why])});
+  return out.slice(0,12)}
+function rutaEditor(){const d=RDRAFT;const vis=d.visible;
+  const users=(USRS||[]).filter(u=>u.usuario!==USER.usuario);
+  const q=norm(RQ);const res=q.length>=2?DATA.filter(x=>!d.codes.includes(x.c)&&(norm(x.n).includes(q)||x.cons.some(c=>norm(c.ce).includes(q)||norm(c.m).includes(q)))).slice(0,8):[];
+  const nf=tabOk('M')?filtered().filter(([x])=>!d.codes.includes(x.c)).length:0;
+  return `<div class="kcard editing"><div class="khead"><div><h4>${d.rid?'Editar ruta':'Nueva ruta'}</h4><div class="sm">${d.codes.length} médicos</div></div><span class="kmode on">Editando</span></div>
+   <div class="grid2"><div><label>Nombre</label><input id="rN" value="${esc(d.nombre)}" placeholder="p. ej. Urgentes zona alta"></div><div><label>Tipo</label><div class="seg" id="rT"><button type="button" data-rt="Normal" aria-pressed="${d.tipo!=='Urgente'}">Normal</button><button type="button" data-rt="Urgente" aria-pressed="${d.tipo==='Urgente'}">★ Urgente</button></div></div></div>
+   <div class="grid2"><div><label>Contar visitas desde</label><input type="date" id="rD" value="${esc(d.desde)}"></div><div><label>Nota</label><input id="rNo" value="${esc(d.nota)}"></div></div>
+   ${rutasTodo()?`<label>Quién la ve</label><div class="seg" id="rV"><button type="button" data-rv="" aria-pressed="${!vis}">Solo yo</button><button type="button" data-rv="*" aria-pressed="${vis==='*'}">Todo el equipo</button><button type="button" data-rv="sel" aria-pressed="${!!vis&&vis!=='*'}">Algunos usuarios</button></div>
+     ${vis&&vis!=='*'?`<div class="kchips" style="margin-top:6px">${users.map(u=>`<label class="kchip"><input type="checkbox" data-ru="${esc(u.usuario)}" ${vis.split(',').includes(u.usuario)?'checked':''}> ${esc(u.nombre||u.usuario)}</label>`).join('')||'<span class="sm">No hay otros usuarios.</span>'}</div>`:''}`:''}
+   <label>Médicos de la ruta</label><div class="kchips">${d.codes.map(c=>{const x=BYCODE.get(c);return `<span class="kchip">${esc(x?x.n:'Código '+c)}<button type="button" class="chipx" data-rx="${c}" aria-label="Quitar">✕</button></span>`}).join('')||'<span class="sm">Añade médicos con el buscador o las sugerencias.</span>'}</div>
+   <div class="rsearch"><input id="rQ" value="${esc(RQ)}" placeholder="Buscar médico, centro o municipio para añadir" autocomplete="off">${nf?`<button type="button" class="btn sec" id="rAddF">Añadir los ${nf.toLocaleString('es')} médicos del filtro de Médicos</button>`:''}</div>
+   ${res.length?`<div class="rres">${res.map(x=>`<button type="button" data-radd="${x.c}"><b>${esc(x.n)}</b> <span class="sm">${esc(x.e||'')} · ${esc(x.cons[0].ce||'')} · ${esc(x.cons[0].m||'')}</span></button>`).join('')}</div>`:''}
+   ${(()=>{const s=sugerenciasRuta();return s.length?`<label>Sugerencias</label><div class="kchips">${s.map(([x,w])=>`<button type="button" class="kchip sugc" data-radd="${x.c}">+ ${esc(x.n)} <span class="sm">· ${w}</span></button>`).join('')}</div>`:''})()}
+   <div class="kacts"><button type="button" class="btn sec" id="rCancel">Cancelar</button><button type="button" class="btn" id="rSave">Guardar ruta</button></div></div>`}
+function rLeer(){if(!RDRAFT)return;if($('rN'))RDRAFT.nombre=$('rN').value;if($('rD'))RDRAFT.desde=$('rD').value;if($('rNo'))RDRAFT.nota=$('rNo').value;if($('rQ'))RQ=$('rQ').value;
+  if(RDRAFT.visible&&RDRAFT.visible!=='*'){const sel=[...$('config').querySelectorAll('[data-ru]:checked')].map(i=>i.dataset.ru);RDRAFT.visible=sel.join(',')||'sel'}}
+function abrirRuta(rid){const x=RT.find(y=>y.rid===rid);RDRAFT=x?{rid:x.rid,nombre:x.nombre,tipo:x.tipo,visible:x.visible,codes:[...x.codes],desde:x.desde||today(),nota:x.nota||''}:{rid:'',nombre:'',tipo:'Normal',visible:'',codes:[],desde:today(),nota:''};RED=true;RQ='';KSEC='rutas';S.tab='K';render();window.scrollTo({top:0})}
+async function rutaApi(d,btn,msg){return busy(btn,async()=>{try{const j=await adminApi({a:'ruta',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+(j.error==='permiso'?'no tienes permiso':j.error),true);return false}
+  if(window.__RAWJ)window.__RAWJ.RUTAS=j.rutas;leerRutas();buildRoutes();toast(msg);return true}catch(err){toast('Sin conexión: '+err.message,true);return false}},'Guardando…')}
+function rutasClick(e){const t=e.target;
+  if(t.id==='rNew'){abrirRuta(null);return}
+  const ed=t.closest('[data-editruta]');if(ed){abrirRuta(ed.dataset.editruta);return}
+  const vr=t.closest('[data-verruta]');if(vr){S.route=vr.dataset.verruta;S.tab='R';render();window.scrollTo({top:0});return}
+  const dl=t.closest('[data-delruta]');if(dl){const x=RT.find(y=>y.rid===dl.dataset.delruta);if(!x||!confirm(`¿Eliminar la ruta "${x.nombre}"? Los médicos y sus visitas no se borran.`))return;
+    rutaApi({id:x.rid,nombre:x.nombre,tipo:x.tipo,codigos:x.codes,desde:x.desde,nota:x.nota,visible:x.visible,activa:false},dl,'Ruta eliminada').then(()=>renderK());return}
+  if(t.id==='rImp'){const defs=TOPROUTES.slice(1).filter(r=>ROUTES.some(x=>x.id===r.id));
+    busy(t,async()=>{for(const r of defs){const codes=r.cor?CORD.map(d=>d.c):[...new Set(r.blocks.flatMap(b=>(b.stops||[]).flatMap(s=>s.codes)))];
+      const j=await adminApi({a:'ruta',d:JSON.stringify({nombre:r.name,tipo:'Urgente',visible:'*',codigos:codes,desde:'2026-09-01',nota:'origen:'+r.id})});if(j.ok&&window.__RAWJ){window.__RAWJ.RUTAS=j.rutas}}
+      leerRutas();buildRoutes();renderK();toast('Rutas convertidas: ya puedes editarlas')},'Convirtiendo…');return}
+  if(!RDRAFT)return;
+  const rt=t.closest('[data-rt]');if(rt){rLeer();RDRAFT.tipo=rt.dataset.rt;renderK();return}
+  const rv=t.closest('[data-rv]');if(rv){rLeer();RDRAFT.visible=rv.dataset.rv==='sel'?'sel':rv.dataset.rv;renderK();return}
+  const rx=t.closest('[data-rx]');if(rx){rLeer();RDRAFT.codes=RDRAFT.codes.filter(c=>c!==+rx.dataset.rx);renderK();return}
+  const rad=t.closest('[data-radd]');if(rad){rLeer();const c=+rad.dataset.radd;if(!RDRAFT.codes.includes(c))RDRAFT.codes.push(c);renderK();$('rQ')&&$('rQ').focus();return}
+  if(t.id==='rAddF'){rLeer();filtered().forEach(([x])=>{if(!RDRAFT.codes.includes(x.c))RDRAFT.codes.push(x.c)});renderK();toast('Añadidos');return}
+  if(t.id==='rCancel'){RED=null;RDRAFT=null;renderK();return}
+  if(t.id==='rSave'){rLeer();const d=RDRAFT;if(!d.nombre.trim()){toast('Ponle un nombre a la ruta',true);return}if(!d.codes.length){toast('Añade al menos un médico',true);return}
+    rutaApi({id:d.rid||undefined,nombre:d.nombre.trim(),tipo:d.tipo,visible:d.visible==='sel'?'':d.visible,codigos:d.codes,desde:d.desde,nota:d.nota},t,'Ruta guardada').then(ok=>{if(ok){RED=null;RDRAFT=null;renderK()}})}}
+
 /* ================= Plan del día ================= */
-const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};
+const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};const BACK={n:'Santpedor',lat:41.7833,lon:1.8414};
+function applyPrefs(){const p=(USER.prefs||{});if(p.salida&&p.salida.lat)Object.assign(HOME,{n:p.salida.nombre||'Salida',lat:+p.salida.lat,lon:+p.salida.lon});Object.assign(BACK,p.vuelta&&p.vuelta.lat?{n:p.vuelta.nombre||'Vuelta',lat:+p.vuelta.lat,lon:+p.vuelta.lon}:HOME)}
+applyPrefs();
+const ll=o=>o.lat+','+o.lon;
 const MUNI_XY={'SANTPEDOR':[41.7833,1.8414],'MANRESA':[41.7251,1.8266],'SANT FRUITOS DE BAGES':[41.7486,1.8736],'NAVARCLES':[41.752,1.9026],'SANT VICENC DE CASTELLET':[41.6667,1.8633],
  'TERRASSA':[41.561,2.01],'RUBI':[41.4933,2.0325],'SANT CUGAT DEL VALLES':[41.4722,2.0864],'SANT QUIRZE DEL VALLES':[41.5319,2.0775],'VALLDOREIX':[41.47,2.06],'SABADELL':[41.5463,2.1086],
  'CERDANYOLA DEL VALLES':[41.4917,2.1408],'BARBERA DEL VALLES':[41.5159,2.1246],'RIPOLLET':[41.4969,2.1575],'MONTCADA I REIXAC':[41.4833,2.1833],'BADIA DEL VALLES':[41.51,2.115],
@@ -1182,7 +1301,7 @@ function buildPlan(){
         if(win==null)continue; seq.push({...x,at:win}); tt=win+vis; val+=x.score*x.score; if(seq.length>=cap)break;
       }
       if(!seq.length)continue;
-      const home=travel(ct.xy,[HOME.lat,HOME.lon],ct.bcn,false); if(tt+home>back)continue;
+      const home=travel(ct.xy,[BACK.lat,BACK.lon],ct.bcn,false); if(tt+home>back)continue;
       const ratio=val/((tt-t)+1);
       if(!best||ratio>best.ratio)best={ct,arr,tr,end:tt,seq,ratio};
     }
@@ -1190,7 +1309,7 @@ function buildPlan(){
     if(!lunched&&best.arr>lIni+30&&t<lIni+60){stops.push({lunch:true,arr:Math.max(t,lIni),end:Math.max(t,lIni)+lDur});t=Math.max(t,lIni)+lDur;lunched=true;continue}
     best.seq.forEach(x=>done.add(x.d.c)); best.ct.used=best.end; stops.push(best); t=best.end; pos=best.ct.xy; posB=best.ct.bcn;
   }
-  const home=travel(pos,[HOME.lat,HOME.lon],posB,false);
+  const home=travel(pos,[BACK.lat,BACK.lon],posB,false);
   const missed=[];
   for(const ct of C)for(const x of ct.docs)if((x.d.top||x.d.cor)&&!done.has(x.d.c))missed.push({d:x.d,reason:'no cabe en el horario de hoy'});
   const seen=new Set(); const miss=[...skipped,...missed].filter(x=>{if(seen.has(x.d.c)||done.has(x.d.c))return false;seen.add(x.d.c);return true});
@@ -1202,8 +1321,8 @@ function renderP(){
   const opts=[['auto','Automático: urgentes y prioridad']].concat(ROUTES.map(r=>[r.id,r.name]));
   let h=`<div class="pform">
    <div><label for="pF">Día</label><input type="date" id="pF" value="${P.fecha}"></div>
-   <div><label for="pS">Salida de Santpedor</label><input type="time" id="pS" value="${P.salida}"></div>
-   <div><label for="pV">Vuelta a Santpedor como tarde</label><input type="time" id="pV" value="${P.vuelta}"></div>
+   <div><label for="pS">Salida de ${esc(HOME.n)}</label><input type="time" id="pS" value="${P.salida}"></div>
+   <div><label for="pV">Llegada a ${esc(BACK.n)} como tarde</label><input type="time" id="pV" value="${P.vuelta}"></div>
    <div><label for="pI">Visitas desde</label><input type="time" id="pI" value="${P.ini}"></div>
    <div><label for="pE">Visitas hasta</label><input type="time" id="pE" value="${P.fin}"></div>
    <div><label for="pM">Minutos por médico</label><input type="number" id="pM" min="5" max="60" value="${P.min}">${minPorMedico()?`<div class="hint">Según tus visitas: ${minPorMedico()} min <a href="#" id="pUseMin">usar</a></div>`:''}</div>
@@ -1223,12 +1342,12 @@ function renderP(){
     if(!pl.stops.length)h+=`<div class="warn">No cabe ninguna visita con este horario. Amplía la hora de vuelta o cambia lo que quieres visitar.</div>`;
     const real=pl.stops.filter(s=>!s.lunch);const places=real.map(s=>s.ct.d?`${s.ct.d}, ${s.ct.m}`:`${s.ct.ce}, ${s.ct.m}`);
     const nowM=new Date().getHours()*60+new Date().getMinutes();const isToday=P.fecha===today();const nextI=isToday?pl.stops.findIndex(s=>!s.lunch&&s.end>=nowM):-1;
-    const links=[];const home0=pl.quick?(pl.origenMe?'':'Santpedor'):'Santpedor';for(let i=0;i<places.length;i+=8){const part=places.slice(i,i+8);const o=i===0?home0:places[i-1];const ult=i+8>=places.length;const dst=ult?(pl.quick?part[part.length-1]:'Santpedor'):part[part.length-1];const wp=ult?(pl.quick?part.slice(0,-1):part):part.slice(0,-1);
+    const links=[];const home0=pl.quick?(pl.origenMe?'':ll(HOME)):ll(HOME);for(let i=0;i<places.length;i+=8){const part=places.slice(i,i+8);const o=i===0?home0:places[i-1];const ult=i+8>=places.length;const dst=ult?(pl.quick?part[part.length-1]:ll(BACK)):part[part.length-1];const wp=ult?(pl.quick?part.slice(0,-1):part):part.slice(0,-1);
       links.push('https://www.google.com/maps/dir/?api=1'+(o?'&origin='+encodeURIComponent(o):'')+'&destination='+encodeURIComponent(dst)+'&travelmode=driving'+(wp.length?'&waypoints='+encodeURIComponent(wp.join('|')):''))}
     const primera=real[nextI>=0?pl.stops.indexOf(pl.stops[nextI])>=0?real.indexOf(pl.stops[nextI]):0:0];const empezar=isToday&&primera?mapsHref({ce:primera.ct.ce,d:primera.ct.d,m:primera.ct.m}):'';
     const npend=pl.stops.reduce((a,s)=>a+(s.seq?s.seq.filter(x=>P._pend&&P._pend.has(x.d.c)).length:0),0);if(npend)h+=`<p class="sm" style="color:#B45309;font-weight:600">Incluye ${npend} ${npend===1?'pendiente':'pendientes'} de rutas anteriores.</p>`;
     if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${can('agenda')?'<button type="button" class="btn" id="pAg">Guardar en mi agenda</button>':''}${empezar?`<a class="btn go" target="_blank" rel="noopener" href="${esc(empezar)}">▶ Empezar ruta</a>`:''}<button type="button" class="btn sec" id="pCal">Añadir al calendario</button>${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
-    h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida ${pl.quick?'desde '+esc(pl.origen):'de Santpedor'}</li>`;
+    h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida ${pl.quick?'desde '+esc(pl.origen):'de '+esc(HOME.n)}</li>`;
     pl.stops.forEach((s,si)=>{
       if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
       const cc={ce:s.ct.ce,d:s.ct.d,m:s.ct.m,lat:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[0]:null,lon:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[1]:null};const mh=mapsHref(cc);
@@ -1236,7 +1355,7 @@ function renderP(){
        <ul class="plist">${s.seq.map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${x.d.top?'<span class="topb">Urgente</span> ':''}${esc(x.d.n)}</div><div class="sm">${hm(x.at)} · ${esc(x.d.e||'')}${x.known?' · pasa consulta hoy':''}${x.d.vn?' · '+esc(x.d.vn):''}</div></span>
        <span style="display:flex;gap:6px">${telHref(x.c.tel||x.d.tel)?`<a class="reg" href="${telHref(x.c.tel||x.d.tel)}">Llamar</a>`:''}${can('editar')?`<button class="reg" data-edit="${x.d.c}">Editar</button>`:''}${can('registrar')?`<button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button>`:''}<button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
     });
-    h+=pl.quick?`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Fin de la ruta</li></ol>`:`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Llegada a Santpedor (${pl.home} min de vuelta)</li></ol>`;
+    h+=pl.quick?`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Fin de la ruta</li></ol>`:`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Llegada a ${esc(BACK.n)} (${pl.home} min de vuelta)</li></ol>`;
     if(pl.miss.length)h+=`<details class="anchor"><summary><span><span class="an">Prioritarios que no entran este día</span><div class="sm">Urgentes y contactos de Corachan, con el motivo</div></span><span class="ac">${pl.miss.length}</span></summary><ul class="plist">${pl.miss.slice(0,60).map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${esc(x.d.n)}</div><div class="sm">${esc(x.reason)}${x.d.vn?' · '+esc(x.d.vn):''}</div></span><span></span></li>`).join('')}</ul></details>`;
     if(P.excl.size)h+=`<p class="sm">${P.excl.size} quitados a mano. <button class="reg" id="pClr">Volver a incluirlos</button></p>`;
     h+=`<p class="sm">${P.comer?'Incluye pausa para comer. ':''}Tiempos estimados en coche (sin tráfico real) y ${P.min} min por médico, 10 min por parada y como máximo ${P.foco==='T3'?'todos los contactos':P.cap+' médicos'} por parada (si quedan más, se vuelve por la tarde). Los médicos con días conocidos solo se proponen el día y la franja en que pasan consulta; los demás, en cualquier hora de visita.</p>`;

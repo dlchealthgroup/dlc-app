@@ -351,6 +351,7 @@ h3[tabindex="-1"]:focus{outline:none}
 
 /* ---------- v1.4: acceso y administración ---------- */
 #boot form label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 3px}
+#boot .lmode{display:flex!important;gap:10px;align-items:flex-start;margin:14px 0 0!important;font-size:14px!important;color:var(--ink)!important;cursor:pointer}#boot .lmode input{width:20px!important;height:20px;min-height:0;margin-top:2px;flex:0 0 auto}
 #boot .acts{position:static;display:flex;justify-content:flex-end;margin-top:16px}
 #boot input{font-size:16px;color:var(--ink);min-height:44px}
 .acct{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
@@ -456,6 +457,16 @@ h3[tabindex="-1"]:focus{outline:none}
 .krow.off input{opacity:.55}.kact button{padding:6px 10px;font-size:12.5px}
 .kcard textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
 @media (max-width:760px){.kgrid{grid-template-columns:1fr}.krow{grid-template-columns:auto minmax(0,1fr)}.krow select,.krow .kact{grid-column:2}}
+
+/* ---------- v1.6 ---------- */
+.okg{color:#1F6F4A;font-weight:700}
+.krow2{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.krow2 input{border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);min-width:0}
+.chipx{border:0;background:none;color:#9B2C2C;cursor:pointer;font-weight:700;padding:0 0 0 4px}
+.rsearch{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.rsearch input{flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--bg)}
+.rres{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px}.rres button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:var(--panel);padding:9px 12px;cursor:pointer}.rres button:hover{background:var(--bg)}
+.sugc{cursor:pointer;background:#E6EEF6!important;border-color:#C9D9EA!important}
+.rpct{font-size:12.5px;color:var(--muted);margin-top:4px}.rpct b{color:var(--navy)}
+#dupBtn[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -537,9 +548,9 @@ h3[tabindex="-1"]:focus{outline:none}
 
       <section class="panel" id="viewM" hidden>
         <div class="asign" id="asignBar" hidden></div>
-        <div class="opts" style="justify-content:space-between">
+        <div id="mdups" hidden></div><div id="mlista"><div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
-          <button type="button" class="dl duppill" id="dupPill" hidden></button>
+          <button type="button" class="dl duppill" id="dupPill" hidden></button><button type="button" class="dl" id="dupBtn" style="display:none">Duplicados</button>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="mapBtn">Ver mapa</button><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl deskonly" id="dlx">Descargar Excel</button><button class="dl deskonly" id="dl" hidden>Descargar CSV</button></span>
         </div>
@@ -550,7 +561,7 @@ h3[tabindex="-1"]:focus{outline:none}
         <div id="mapWrap" hidden><div class="maproute" id="mapRoute"></div><div id="map"></div><div class="legend" id="mapLeg"></div></div>
         <div class="cards" id="mcards"></div>
         <button class="more" id="more" hidden>Mostrar 100 más</button>
-      </section>
+      </div></section>
 
       <section class="panel" id="viewP" hidden><div id="plan" style="padding:14px"></div></section>
       <section class="panel" id="viewR" hidden>
@@ -631,13 +642,14 @@ h3[tabindex="-1"]:focus{outline:none}
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.5.4';
+window.__APPVER='1.6.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
+const guardarLocal=()=>localStorage.getItem('dlc_guardar')!=='0';
 const idb={db:null,open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('dlc-os',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
-  async get(k){const db=await this.open();return new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})},
-  async set(k,v){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
+  async get(k){if(k==='raw'&&!guardarLocal())return window.__RAWMEM||null;const db=await this.open();return new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})},
+  async set(k,v){if(k==='raw'&&v&&!guardarLocal()){window.__RAWMEM=v;return}const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
 function url0(){try{const c=JSON.parse(localStorage.getItem('dlc_cfg')||'null');if(c&&c.url)return c.url}catch(e){}return DEF_URL}
 function ses(){try{return JSON.parse(localStorage.getItem('dlc_ses')||'null')}catch(e){return null}}
 function cfg(){const s=ses();return {url:url0(),t:s&&s.s,user:s&&s.user}}
@@ -651,22 +663,25 @@ async function viaFetch(u){const r=await fetch(u,{credentials:'omit',cache:'no-s
 /* llamada genérica al servidor (GET + método alternativo) */
 async function api(params,ms){
   const q=Object.entries(params).filter(([k,v])=>v!==undefined&&v!==null).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
-  const u=url0()+'?'+q; let j,err1='';
-  if(localStorage.getItem('dlc_mode')!=='jsonp'){try{j=await viaFetch(u);localStorage.setItem('dlc_mode','fetch')}catch(e){err1=e.message}}
-  if(!j){try{j=await jsonp(u,ms);localStorage.setItem('dlc_mode','jsonp')}catch(e){throw new Error('Google no ha respondido. Detalle para soporte: '+(err1||'fetch omitido')+' · alternativo: '+e.message)}}
-  return j}
+  const u=url0()+'?'+q;const errs=[];
+  for(let ronda=0;ronda<3;ronda++){
+    const orden=localStorage.getItem('dlc_mode')==='jsonp'?['jsonp','fetch']:['fetch','jsonp'];
+    for(const m of orden){try{const j=m==='fetch'?await viaFetch(u):await jsonp(u,ms);localStorage.setItem('dlc_mode',m);return j}catch(e){errs.push(m+': '+e.message)}}
+    await new Promise(r=>setTimeout(r,700*(ronda+1)));
+  }
+  throw new Error('Google no ha respondido tras varios intentos ('+errs.slice(-2).join(' · ')+')')}
 window.__api=api;
 async function sha256hex(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 const hashPw=(u,p)=>sha256hex('dlc|'+String(u).trim().toLowerCase()+'|'+p);
 window.__hashPw=hashPw;
 class SesionError extends Error{}
-async function conReintento(fn,n){let e;for(let i=0;i<(n||3);i++){try{return await fn()}catch(err){e=err;await new Promise(r=>setTimeout(r,800*(i+1)))}}throw e}
+async function conReintento(fn,n){let e;for(let i=0;i<(n||2);i++){try{return await fn()}catch(err){e=err;await new Promise(r=>setTimeout(r,800*(i+1)))}}throw e}
 async function fetchAll(c,onProg){
   if(!c.t)throw new SesionError('sin sesión');
   const m=await conReintento(()=>api({s:c.t,a:'meta'},60000));
   if(!m.ok){if(m.error==='sesion')throw new SesionError('Tu sesión ha caducado o se ha cerrado. Vuelve a entrar.');throw new Error('Error de la hoja: '+m.error)}
   const out={ok:true,hora:m.hora,user:m.user,full:m.hora,catalogos:m.catalogos||[]};if(m.usuarios)out.usuarios=m.usuarios;
-  const TAM={MEDICOS:400,CONSULTAS:1200,NOTAS_VISITA:2000,VISITAS:1500,TIEMPOS:2000,AGENDA:1500};
+  const TAM={MEDICOS:700,CONSULTAS:1500,NOTAS_VISITA:2000,VISITAS:1500,TIEMPOS:2000,AGENDA:1500,RUTAS:500};
   const tareas=[];Object.entries(m.tam||{}).forEach(([h,n])=>{out[h]={h:[],rows:[]};if(!n)tareas.push({h,o:0});for(let o=0;o<n;o+=TAM[h]||800)tareas.push({h,o})});
   const partes={};let hechas=0;
   const una=async t=>{const j=await conReintento(()=>api({s:c.t,a:'part',h:t.h,o:t.o,n:TAM[t.h]||800},60000));
@@ -691,7 +706,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.5.4'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.6.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){
@@ -738,9 +753,11 @@ async function descargar(){msgEl(progHTML(0,0));
 function loginForm(msg){
   card().innerHTML=logoH+`<h2>Acceso</h2><form id="lf" autocomplete="on"><label for="lu">Usuario</label><input id="lu" name="username" autocomplete="username" autocapitalize="off" spellcheck="false">
    <label for="lp">Contraseña</label><input id="lp" type="password" name="password" autocomplete="current-password">
+   <label class="lmode"><input type="checkbox" id="lg" ${guardarLocal()?'checked':''}> <span><b>Guardar los datos en este dispositivo</b><br><span class="sm">Para trabajar sin conexión y abrir la app al instante. Desmárcalo en equipos compartidos: no quedará ninguna copia al cerrar sesión.</span></span></label>
    <div class="acts"><button class="btn" id="lgo" type="submit">Entrar</button></div></form><p class="sm" id="bMsg" style="color:#B7791F">${msg||''}</p><p class="sm" id="bSetup"></p>`;
   document.getElementById('lf').onsubmit=async e=>{e.preventDefault();const u=document.getElementById('lu').value.trim(),p=document.getElementById('lp').value;
-    if(!u||!p){msgEl('Escribe tu usuario y contraseña.',true);return}msgEl('<span class="spin"></span> Comprobando…');
+    if(!u||!p){msgEl('Escribe tu usuario y contraseña.',true);return}
+    localStorage.setItem('dlc_guardar',document.getElementById('lg').checked?'1':'0');if(!guardarLocal()){try{const db=await idb.open();db.transaction('kv','readwrite').objectStore('kv').delete('raw')}catch(e){}}msgEl('<span class="spin"></span> Comprobando…');
     try{const j=await api({a:'login',u,h:await hashPw(u,p)},30000);
       if(!j.ok){msgEl(j.error==='bloqueado'?'Demasiados intentos. Espera 15 minutos y vuelve a probar.':'Usuario o contraseña incorrectos.',true);return}
       await entrar(j,p)}catch(err){msgEl('No se ha podido conectar: '+err.message,true)}};
