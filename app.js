@@ -22,7 +22,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:'',asig:'',asignando:null};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:'',asig:'',asignando:null,clas:{},dupf:false};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -51,6 +51,8 @@ function docMatch(d){
   if(S.area&&d.a!==S.area)return false; if(S.esp&&d.e!==S.esp)return false; if(S.tipo&&d.t!==S.tipo)return false;
   if(S.top&&!d.top)return false;
   if(S.est&&estadoDe(d)!==S.est)return false;
+  for(const k in S.clas){if(S.clas[k]&&((d.clas||{})[k]||'')!==S.clas[k])return false}
+  if(S.dupf&&d.dup!=='Pendiente de unificar')return false;
   if(S.asig){if(S.asig==='__sin'){if((d.asig||[]).length)return false}else if(!(d.asig||[]).includes(S.asig))return false}
   if(S.issue){const it=ISSUES.find(x=>x[0]===S.issue);if(!it||!enPool(d)||!it[2](d))return false}
   if(S.cal.length&&!S.cal.includes(d.q))return false; if(S.texto&&!norm(d.n).includes(norm(S.texto)))return false;
@@ -191,6 +193,8 @@ function renderFilters(){
   if(S.top)add('top','Solo urgentes');
   if(S.near)add('near','Cerca de mí');
   if(S.est)add('est','Estado: '+S.est);
+  for(const k in S.clas){if(S.clas[k])add('clas:'+k,k+': '+S.clas[k])}
+  if(S.dupf)add('dupf','Pendientes de unificar');
   if(S.asig)add('asig',S.asig==='__sin'?'Sin asignar':'Asignado a '+S.asig);
   if(S.issue)add('issue','Revisar: '+(ISSUES.find(x=>x[0]===S.issue)||['',''])[1]);
   if(S.seg)add('seg',{sin:'Sin visitar',vis:'Visitados',prox:'Con próxima acción'}[S.seg]);
@@ -226,10 +230,11 @@ function renderM(){
   const f=filtered();
   if(PERM.admin)asignBar(f);else $('asignBar').hidden=true;
   $('count').innerHTML=`<b>${f.length.toLocaleString('es')}</b> médicos`;
+  {const nd=DATA.filter(d=>d.dup==='Pendiente de unificar').length;$('dupPill').hidden=!nd||S.dupf;$('dupPill').textContent=`⚠ ${nd} ${nd===1?'médico pendiente':'médicos pendientes'} de unificar`;}
   $('mNote').textContent=S.near?'Ordenados por distancia a tu posición (aproximada, hasta 25 km)':`${f.filter(([d,c])=>daysFor(d,c).some(Boolean)).length} con días de consulta conocidos · ordenados por provincia, municipio y centro`;
   $('tbody').innerHTML=f.slice(0,S.limit).map(([d,c])=>{
     const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';
-    let h=`<tr class="row" data-c="${d.c}"><td><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div><div class="sm">${esc(d.e||'Sin especialidad')}${d.t==='Centro'?' · centro':''}${d.top?' · '+esc(d.top):''}</div></td><td>${esc(c.ce||'Sin centro')}<div class="sm">${c.g&&c.g!==c.ce?esc(c.g):''}</div></td><td>${esc(c.m||'')}</td><td>${esc(c.d||'')}</td><td style="white-space:nowrap">${esc(c.tel||'')}</td><td>${dayBadges(daysFor(d,c))}</td><td><span class="q ${qc}">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></td><td>${visitCell(d)}</td></tr>`;
+    let h=`<tr class="row" data-c="${d.c}"><td><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}${d.dup==='Pendiente de unificar'?' <span class="dupb">Pendiente de unificar</span>':''}</div>${d.dup==='Pendiente de unificar'&&PERM.admin?`<button type="button" class="reg" data-revdup="${d.c}" style="margin:4px 0;border-color:#F5C2C2;color:#9B2C2C">Revisar duplicado</button>`:''}<div class="sm">${esc(d.e||'Sin especialidad')}${d.t==='Centro'?' · centro':''}${d.top?' · '+esc(d.top):''}</div></td><td>${esc(c.ce||'Sin centro')}<div class="sm">${c.g&&c.g!==c.ce?esc(c.g):''}</div></td><td>${esc(c.m||'')}</td><td>${esc(c.d||'')}</td><td style="white-space:nowrap">${esc(c.tel||'')}</td><td>${dayBadges(daysFor(d,c))}</td><td><span class="q ${qc}">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></td><td>${visitCell(d)}</td></tr>`;
     if(S.open.has(d.c))h+=detailRow(d,8);
     return h;}).join('')||`<tr><td colspan="8" class="empty">Ningún médico cumple estos filtros. Quita alguno para ver resultados.</td></tr>`;
   if(S.asignando&&!isMob()){$('viewM').querySelector('.tablewrap').style.display='none';$('mapWrap').hidden=true;$('mcards').style.display='block';$('mcards').innerHTML=f.slice(0,S.limit).map(([d,c])=>cardHTML(d,c)).join('')||'<div class="empty">Ningún médico cumple estos filtros.</div>';$('more').hidden=f.length<=S.limit;return}
@@ -350,13 +355,16 @@ function init(){
   document.querySelectorAll('input[name=agr]').forEach(r=>r.addEventListener('change',e=>{S.agr=e.target.value;reset0()}));
   on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('areaSel','change',e=>{setArea(e.target.value)});
   on('reset','click',()=>{clearFilters();reset0()});
-  on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
+  on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;if(k==='dupf'){S.dupf=false;reset0();return}if(k.startsWith('clas:')){delete S.clas[k.slice(5)];reset0();return}S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
   for(const [k,id] of [['H','tabH'],['G','tabG'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA'],['K','tabK']])on(id,'click',()=>{S.tab=k;render()});
   on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
   on('nearBtn','click',e=>nearMe(e.target));
-  document.addEventListener('click',e=>{if(e.target.id==='mrBtn')openQuickRoute()});
+  document.addEventListener('click',e=>{if(e.target.id==='mrBtn')openQuickRoute();if(e.target.id==='dupPill'){clearFilters();S.dupf=true;S.tab='M';S.limit=100;render()}
+    const rv=e.target.closest('[data-revdup]');if(rv){revisarDup(+rv.dataset.revdup);return}
+    const ru=e.target.closest('[data-run]');if(ru){const de=+ru.dataset.run,en=+ru.dataset.en;if(!confirm(`¿Unificar el código ${de} en el ${en}? No se puede deshacer desde la app.`))return;busy(ru,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}$('udlg').close();render();toast('Unificado')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
+    const rn=e.target.closest('[data-rnd]');if(rn){const c=+rn.dataset.rnd;busy(rn,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){const d=BYCODE.get(c);if(d)d.dup='Revisado';$('udlg').close();render();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
   on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L){progress('Cargando el mapa',30);busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>{render();progressEnd()})}else render()});
   on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b||!tabOk('M'))return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b||!tabOk('M'))return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
@@ -392,7 +400,7 @@ function init(){
   setupEdit();setupShare();setupV133();setupAdmin();setupAgenda();setupCat();setupDups();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
-function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:'',asig:''})}
+function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:'',asig:'',clas:{},dupf:false})}
 
 async function setupDb(){
   if(!window.claude){$('dbWarn').hidden=false;return}
@@ -502,13 +510,13 @@ function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
   return `<div class="acts2">${can('urgente')?`<button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>`:(d.top?'<span class="act urg on" style="cursor:default">★ Urgente</span>':'')}${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}${can('editar')?`<button type="button" class="act" data-edit="${d.c}">Editar ficha</button>`:''}${can('registrar')?`<button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>`:''}${extra||''}</div>`}
 function cardHTML(d,c){
   const asg=S.asignando&&S.tab==='M'?`<button type="button" class="act ${(d.asig||[]).includes(S.asignando)?'pri2':''}" data-as1="${d.c}" style="margin-top:8px">${(d.asig||[]).includes(S.asignando)?'✓ Asignado a '+esc(S.asignando):'Asignar a '+esc(S.asignando)}</button>`:'';const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
-  return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}${d.dup==='Pendiente de unificar'?' <span class="dupb">Pendiente de unificar</span>':''}</div>
+  return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}${d.dup==='Pendiente de unificar'?' <span class="dupb">Pendiente de unificar</span>':''}</div>${d.dup==='Pendiente de unificar'&&PERM.admin?`<button type="button" class="act" data-revdup="${d.c}" style="margin:6px 0 0;border-color:#F5C2C2;color:#9B2C2C">Revisar duplicado</button>`:''}
   <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}${d._km!=null?` · <span class="dist">a ${d._km<1?'menos de 1':d._km.toFixed(1).replace('.',',')} km${d._kx?'':' (aprox.)'}</span>`:''}</div>
   <div style="margin-top:6px">${esc(c.ce||'Sin centro')}${c.g&&c.g!==c.ce?` <span class="sm">· ${esc(c.g)}</span>`:''}</div>
   <div class="sm">${esc([c.d,c.m].filter(Boolean).join(' · '))}${d.cons.length>1?` · ${d.cons.length} consultas`:''}</div>
   <div class="row2">${dayBadges(dy)}<span class="q ${qc}" style="font-size:12.5px">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></div>
   ${dy.some(Boolean)?`<div class="sm" style="margin-top:4px">${DAYS.map((k,i)=>dy[i]?k+' '+esc(dy[i]):'').filter(Boolean).join(' · ')}</div>`:''}
-  ${d.vn?`<div class="sm">Cuándo: ${esc(d.vn)}</div>`:''}
+  ${d.vn?`<div class="sm">Cuándo: ${esc(d.vn)}</div>`:''}${d.clas&&Object.values(d.clas).some(Boolean)?`<div class="kchips" style="margin-top:6px">${Object.entries(d.clas).filter(([k,v])=>v).map(([k,v])=>`<span class="kchip" title="${esc(k)}"><b>${esc(k)}:</b> ${esc(v)}</span>`).join('')}</div>`:''}
   <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="estb" data-e="${estadoDe(d)}">${esc(estadoDe(d))}</span>${visitCell(d)}${PERM.admin&&(d.asig||[]).length?`<span class="sm">· ${esc(d.asig.join(', '))}</span>`:''}</div>${asg||actBtns(d,c)}</div>`}
 /* ---------- Hoy ---------- */
 function renderH(){
@@ -622,6 +630,11 @@ let LMAP=null,LLAYER=null,LP=null;
 function loadLeaflet(){if(window.L)return Promise.resolve();if(LP)return LP;LP=new Promise((res,rej)=>{const l=document.createElement('link');l.rel='stylesheet';l.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.appendChild(l);
   const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';sc.onload=()=>res();sc.onerror=()=>{LP=null;rej(new Error('sin conexión'))};document.head.appendChild(sc)});return LP}
 function colorDe(d){if(d.top&&!(segOf(d.c)&&segOf(d.c).ultima))return '#D97706';const e=estadoDe(d);return e==='Prescribe'?'#1F8A5B':e==='Interesado'?'#B7791F':e==='Presentado'?'#2B6CB0':e==='No interesado'?'#9B2C2C':'#123A63'}
+let MAPF=[],MAPVIS=[];
+function mapVisibles(){if(!LMAP||!MAPF)return;const b=LMAP.getBounds();let ex=0,ap=0;MAPVIS=MAPF.filter(([d,c])=>{const xy=xyOf(c);if(!xy||!b.contains(xy))return false;c.lat?ex++:ap++;return true});
+  const tot=MAPF.filter(([d,c])=>xyOf(c)).length;
+  $('mapLeg').innerHTML=[['#D97706','Urgente sin visitar'],['#123A63','Sin contactar'],['#2B6CB0','Presentado'],['#B7791F','Interesado'],['#1F8A5B','Prescribe'],['#9B2C2C','No interesado']].map(([c,t])=>`<span><i style="background:${c}"></i>${t}</span>`).join('')+`<span><b>En pantalla: ${MAPVIS.length.toLocaleString('es')}</b> (${ex} con dirección exacta · ${ap} aproximados) de ${tot.toLocaleString('es')} con los filtros</span>`;
+  if(tabOk('P'))$('mapRoute').innerHTML=`<span><b>${MAPVIS.length.toLocaleString('es')}</b> médicos visibles en el mapa${MAPVIS.length<tot?` (de ${tot.toLocaleString('es')})`:''}. Acerca o aleja el mapa para elegir la zona.</span><button type="button" class="btn" id="mrBtn" ${MAPVIS.length?'':'disabled'}>Crear ruta con los ${MAPVIS.length.toLocaleString('es')} visibles</button>`}
 async function renderMap(f){
   $('mapWrap').hidden=false;
   try{await loadLeaflet()}catch(e){$('map').innerHTML='<div class="empty">El mapa necesita conexión a internet.</div>';return}
@@ -635,7 +648,8 @@ async function renderMap(f){
     mk.addTo(LLAYER);pts.push(xy)}
   if(S.near){L.circleMarker(S.near,{radius:9,color:'#fff',weight:3,fillColor:'#E53E3E',fillOpacity:1}).addTo(LLAYER).bindPopup('Estás aquí');pts.push(S.near)}
   if(pts.length)LMAP.fitBounds(pts,{padding:[30,30],maxZoom:15});
-  $('mapLeg').innerHTML=[['#D97706','Urgente sin visitar'],['#123A63','Sin contactar'],['#2B6CB0','Presentado'],['#B7791F','Interesado'],['#1F8A5B','Prescribe'],['#9B2C2C','No interesado']].map(([c,t])=>`<span><i style="background:${c}"></i>${t}</span>`).join('')+`<span>${ex} con dirección exacta · ${ap} aproximados (más pequeños y claros)</span>`;
+  MAPF=f;mapVisibles();
+  if(!LMAP._dlcMove){LMAP._dlcMove=true;LMAP.on('moveend zoomend',mapVisibles)}
 }
 /* ---------- v1.3: check-in y tiempos reales ---------- */
 function chkGet(){try{return JSON.parse(localStorage.getItem('dlc_chk')||'null')}catch(e){return null}}
@@ -727,17 +741,19 @@ window.__sesionCaducada=sesionCaducada;
 function applyPerms(){
   TABS_ORD.forEach(k=>{const b=$('tab'+k);if(b)b.style.display=tabOk(k)?'':'none';const nb=document.querySelector(`#bnav [data-tab="${k}"]`);if(nb)nb.style.display=tabOk(k)?'':'none'});
   const n=TABS_ORD.filter(tabOk).length;$('bnav').style.gridTemplateColumns=`repeat(${Math.max(1,n)},1fr)`;
-  const ms=$('modSel');if(ms){ms.innerHTML=(PERM.admin||(PERM.mods&&PERM.mods.rutas)?'<option value="rutas">Rutas y médicos</option>':'')+'<option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option>'+(tabOk('K')?'<option value="config">Configuración</option>':'')+(PERM.admin?'<option value="admin">Administración</option>':'');ms.value=S.tab==='A'?'admin':S.tab==='K'?'config':'rutas'}
+  const ms=$('modSel');if(ms){ms.innerHTML=(PERM.admin||(PERM.mods&&PERM.mods.rutas)?'<option value="rutas">Rutas y médicos</option>':'')+'<option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option>'+(PERM.admin?'<option value="admin">Administración</option>':'');ms.value=S.tab==='A'?'admin':'rutas'}
+  if($('cfgK'))$('cfgK').style.display=tabOk('K')?'':'none';
   ['newBtn'].forEach(id=>{if($(id))$(id).style.display=can('nuevo')?'':'none'});
   ['dlx','dl','dlSeg','dlFich'].forEach(id=>{if($(id)&&!can('excel'))$(id).style.display='none'});
   if($('nearBtn'))$('nearBtn').style.display=tabOk('M')?'':'none';
+  {const w=$('fClasW');if(w){const tc=tiposCustom().filter(t=>t.activo);const html=tc.map(t=>`<div class="f"><label>${esc(t.label)}</label><select data-fclas="${esc(t.key)}"><option value="">Todos</option>${catVals(t.key).map(v=>`<option ${S.clas[t.key]===v?'selected':''}>${esc(v)}</option>`).join('')}</select></div>`).join('');if(w.dataset.h!==html){w.innerHTML=html;w.dataset.h=html}else w.querySelectorAll('[data-fclas]').forEach(s=>s.value=S.clas[s.dataset.fclas]||'')}}
   if($('fAsigW')){$('fAsigW').hidden=!PERM.admin;if(PERM.admin){const f=$('fAsig');const opts='<option value="">Todos</option><option value="__sin">Sin asignar</option>'+USRS.filter(u=>u.rol!=='Administrador').map(u=>`<option value="${esc(u.usuario)}">${esc(u.nombre||u.usuario)}</option>`).join('');if(f.dataset.o!==opts){f.innerHTML=opts;f.dataset.o=opts}f.value=S.asig}}
 }
 /* ---- administración ---- */
 let USRS=(window.__RAWJ&&window.__RAWJ.usuarios)||[];
 const PEST_N={K:'Configuración',H:'Hoy',G:'Agenda',C:'Centros',M:'Médicos',P:'Plan del día',R:'Rutas',S:'Seguimiento'};
 const NIV_N=['Sin acceso','Ver','Editar','Completo'];
-const AREA_AYUDA={H:['','Ve su resumen','Además registra desde Hoy','Igual que Editar'],G:['','Ve su agenda','Además crea, reprograma y descarta citas','Igual que Editar'],C:['','Ve el ranking de centros','Igual que Ver','Igual que Ver'],M:['','Ve las fichas','Además edita fichas, urgentes y estado','Además da de alta médicos y exporta a Excel'],P:['','Consulta el plan','Además guarda rutas y hace check-in','Igual que Editar'],R:['','Ve las rutas','Igual que Ver','Igual que Ver'],S:['','Ve el seguimiento','Además registra visitas','Además exporta a Excel'],K:['','Ve los catálogos','Además añade, renombra, ordena y desactiva valores','Igual que Editar']};
+const AREA_AYUDA={H:['','Ve su resumen','Además registra desde Hoy','Igual que Editar'],G:['','Ve su agenda','Además crea, reprograma y descarta citas','Igual que Editar'],C:['','Ve el ranking de centros','Igual que Ver','Igual que Ver'],M:['','Ve las fichas','Además edita fichas, urgentes y estado','Además da de alta médicos y exporta a Excel'],P:['','Consulta el plan','Además guarda rutas y hace check-in','Igual que Editar'],R:['','Ve las rutas','Igual que Ver','Igual que Ver'],S:['','Ve el seguimiento','Además registra visitas','Además exporta a Excel'],K:['','Ve los catálogos','Además añade, renombra, ordena y activa o desactiva valores','Además elimina valores y crea o elimina clasificadores']};
 const ACC_N={editar:'Editar fichas',registrar:'Registrar visitas y check-in',urgente:'Marcar urgentes',estado:'Cambiar estado comercial',nuevo:'Dar de alta médicos',excel:'Descargar Excel y CSV'};
 const ROLES_UI={'Administrador':{H:3,G:3,C:3,M:3,P:3,R:3,S:3,K:3},'Comercial':{H:2,G:2,C:1,M:2,P:2,R:1,S:2,K:0},'Solo consulta':{H:1,G:1,C:1,M:1,P:1,R:1,S:1,K:0}};
 async function adminApi(params){const c=window.__cfg();const j=await window.__api({s:c.t,...params},40000);if(!j.ok&&j.error==='sesion'){sesionCaducada();throw new Error('sesión')}return j}
@@ -826,6 +842,7 @@ function setupAdmin(){
   document.addEventListener('click',e=>{const t=e.target.closest('[data-as1]');if(t){e.preventDefault();const c=+t.dataset.as1,d=BYCODE.get(c);asignar([c],(d.asig||[]).includes(S.asignando)?'quitar':'add',t)}});
   $('modSel').addEventListener('change',e=>{const v=e.target.value;if(v==='admin'){S.tab='A'}else if(v==='config'){S.tab='K'}else{S.tab=firstTab()}render();window.scrollTo({top:0})});
   $('fAsig')&&$('fAsig').addEventListener('change',e=>{S.asig=e.target.value;reset0()});
+  $('fClasW')&&$('fClasW').addEventListener('change',e=>{const s=e.target.closest('[data-fclas]');if(s){S.clas[s.dataset.fclas]=s.value;reset0()}});
 }
 
 /* ================= v1.5: agenda y rutas planificadas ================= */
@@ -908,27 +925,74 @@ function setupAgenda(){
 }
 /* ================= v1.5: catálogos (administración) ================= */
 const CAT_T={ESPECIALIDAD:'Especialidades',AREA:'Áreas',RESULTADO:'Resultados de visita',MOTIVO_URGENCIA:'Motivos de urgencia'};
-let CATSEL='ESPECIALIDAD',ASEC='usuarios';
-function renderK(){$('count').innerHTML='';$('config').innerHTML=`<div class="dayhead"><h3>Configuración de la plataforma</h3></div><p class="sm">Listas y clasificadores que usan todos los usuarios.${can('catalogos')?'':' Tienes permiso de consulta: para cambiarlos necesitas nivel Editar en Configuración.'}</p>`+renderCat()}
-function renderCat(){const items=CAT.filter(x=>x.tipo===CATSEL).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));
-  const ed=can('catalogos');
-  return `<div class="dayhead"><h4 style="margin:0">Catálogos</h4><select id="catT" class="areasel">${Object.entries(CAT_T).map(([k,t])=>`<option value="${k}" ${k===CATSEL?'selected':''}>${t}</option>`).join('')}</select></div>
-   <p class="sm">Añade valores y aparecerán al momento en los desplegables de todos los usuarios. Desactivar un valor no cambia los datos que ya lo usan.</p>
-   ${ed?`<div class="catadd"><input id="catNew" placeholder="Nuevo valor">${CATSEL==='RESULTADO'?'<select id="catX" class="areasel"><option value="pos">Visita realizada</option><option value="neg">Sin visita o sin interés</option></select>':''}<button type="button" class="btn" id="catAdd">Añadir</button></div>`:''}
-   <div class="catlist">${items.map((x,i)=>`<div class="catrow ${x.activo?'':'off'}"><span class="catord">${ed?`<button type="button" class="reg" data-cmv="${i}" data-dir="-1" ${i?'':'disabled'}>↑</button><button type="button" class="reg" data-cmv="${i}" data-dir="1" ${i<items.length-1?'':'disabled'}>↓</button>`:i+1+'.'}</span>
-     <span class="catv">${esc(x.valor)}${CATSEL==='RESULTADO'?` <span class="sm">· ${x.extra==='neg'?'sin visita':'visita realizada'}</span>`:''}</span>
-     <span>${ed?`<button type="button" class="reg" data-cren="${esc(x.valor)}">Renombrar</button> <button type="button" class="reg" data-ctog="${esc(x.valor)}">${x.activo?'Desactivar':'Activar'}</button>`:(x.activo?'':'<span class="sm">desactivado</span>')}</span></div>`).join('')||'<p class="sm">Sin valores.</p>'}</div>`}
-async function catSave(d,btn,msg){return busy(btn,async()=>{try{const j=await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,...d})});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
-  CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;toast(msg||'Guardado');renderK()}catch(err){toast('Los catálogos necesitan conexión',true)}},'Guardando…')}
+let ASEC='usuarios';
+/* ---- Configuración: clasificadores en tarjetas ---- */
+const SYS_T=['ESPECIALIDAD','AREA','RESULTADO','MOTIVO_URGENCIA'];
+const tiposCustom=()=>CAT.filter(x=>x.tipo==='__TIPO').sort((a,b)=>a.orden-b.orden).map(x=>({key:x.valor,label:x.valor,activo:x.activo}));
+const tipoLabel=k=>CAT_T[k]||k;
+let KED=null,KDRAFT=null,KLOAD=false,KERR='',KOK=false;
+async function cargarCat(){if(KLOAD)return;KLOAD=true;KERR='';renderK();
+  try{const j=await adminApi({a:'catalogos'});if(j.ok){CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KOK=true}else KERR=j.error==='accion'?'El servidor todavía no tiene esta función. Publica la versión nueva del script (Implementar → Gestionar implementaciones → Nueva versión).':'El servidor ha respondido con un error: '+j.error+(j.detalle?' ('+j.detalle+')':'')}
+  catch(e){KERR='No se ha podido contactar con el servidor. '+(navigator.onLine?'Detalle: '+e.message:'Estás sin conexión.')}
+  finally{KLOAD=false;if(S.tab==='K')renderK()}}
+const canTodoK=()=>!!(PERM.admin||(PERM.acc&&PERM.acc.catalogosTodo));
+function kCard(k,label,custom){const items=CAT.filter(x=>x.tipo===k).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));const ed=KED===k;const puede=can('catalogos');
+  if(!ed)return `<div class="kcard"><div class="khead"><div><h4>${esc(label)}</h4><div class="sm">${items.filter(x=>x.activo).length} valores activos${items.some(x=>!x.activo)?' · '+items.filter(x=>!x.activo).length+' desactivados':''}${custom?' · clasificador propio':''}</div></div><span class="kmode">Solo lectura</span></div>
+    <div class="kchips">${items.map(x=>`<span class="kchip ${x.activo?'':'off'}">${esc(x.valor)}${k==='RESULTADO'?`<i class="${x.extra==='neg'?'neg':'pos'}"></i>`:''}</span>`).join('')||'<span class="sm">Sin valores todavía.</span>'}</div>
+    ${puede?`<div class="kacts">${custom&&canTodoK()?`<button type="button" class="btn sec danger" data-kdelt="${esc(k)}">Eliminar clasificador</button>`:''}<button type="button" class="btn sec" data-ked="${esc(k)}">✎ Editar</button></div>`:''}</div>`;
+  const d=KDRAFT;
+  return `<div class="kcard editing"><div class="khead"><div><h4>${esc(label)}</h4><div class="sm">Cambia lo que necesites y pulsa Guardar.</div></div><span class="kmode on">Editando</span></div>
+    <div class="klist">${d.map((x,i)=>`<div class="krow ${x.activo?'':'off'}"><span class="catord"><button type="button" class="reg" data-kmv="${i}" data-dir="-1" ${i?'':'disabled'}>↑</button><button type="button" class="reg" data-kmv="${i}" data-dir="1" ${i<d.length-1?'':'disabled'}>↓</button></span>
+      <input data-kval="${i}" value="${esc(x.valor)}">${k==='RESULTADO'?`<select data-kext="${i}" class="areasel"><option value="pos" ${x.extra!=='neg'?'selected':''}>Visita realizada</option><option value="neg" ${x.extra==='neg'?'selected':''}>Sin visita</option></select>`:''}
+      <div class="seg kact"><button type="button" data-kact="${i}" data-v="1" aria-pressed="${x.activo}">Activo</button><button type="button" data-kact="${i}" data-v="0" aria-pressed="${!x.activo}">Inactivo</button></div>${canTodoK()?`<button type="button" class="xbtn kdel" data-kdel="${i}" title="Eliminar" aria-label="Eliminar">🗑</button>`:''}</div>`).join('')}</div>
+    <div class="catadd"><input id="kNew" placeholder="Nuevo valor (pulsa Intro para añadir)"><button type="button" class="btn sec" id="kAdd">+ Añadir</button></div>
+    <div class="kacts"><button type="button" class="btn sec" id="kCancel">Cancelar</button><button type="button" class="btn" id="kSave">Guardar cambios</button></div></div>`}
+function renderK(){$('count').innerHTML='';
+  if(!KOK&&!KLOAD&&!KERR)setTimeout(cargarCat,0);
+  const nivel=PERM.admin?3:(PERM.areas&&PERM.areas.K)||0;
+  let h=`<div class="dayhead"><h3>Configuración de la plataforma</h3>${canTodoK()?'<button type="button" class="btn" id="kNewT">+ Nuevo clasificador</button>':''}</div>
+   <p class="sm">Tu nivel: <b>${['Sin acceso','Ver','Editar','Completo'][nivel]}</b> · ${['','solo consulta','puedes añadir, renombrar, ordenar y activar o desactivar valores','además puedes eliminar valores y crear o eliminar clasificadores'][nivel]}.</p>
+   <p class="sm">Listas y clasificadores que usan todos los usuarios en fichas, visitas y filtros.${can('catalogos')?'':' Tienes permiso de consulta: para cambiarlos necesitas nivel Editar en Configuración.'}</p>`;
+  if(KLOAD)h+='<div class="prog2"><div class="pbar ind"><i></i></div><div class="ptxt">Cargando los clasificadores del servidor…</div></div>';
+  if(KERR)h+=`<div class="warn" style="margin:10px 0">${esc(KERR)} <button type="button" class="reg" id="kRetry">Reintentar</button></div>`;
+  if(KED==='__nuevo')h+=`<div class="kcard editing"><div class="khead"><div><h4>Nuevo clasificador</h4><div class="sm">Por ejemplo "Tipo de centro" o "Idioma". Aparecerá en la ficha de cada médico y como filtro.</div></div><span class="kmode on">Nuevo</span></div>
+     <label for="kTN">Nombre</label><input id="kTN" placeholder="Tipo de centro"><label for="kTV">Valores (uno por línea)</label><textarea id="kTV" rows="5" placeholder="Hospital&#10;Clínica&#10;Consulta privada"></textarea>
+     <div class="kacts"><button type="button" class="btn sec" id="kCancel">Cancelar</button><button type="button" class="btn" id="kCreate">Crear clasificador</button></div></div>`;
+  h+='<div class="kgrid">'+SYS_T.map(k=>kCard(k,tipoLabel(k),false)).join('')+tiposCustom().map(t=>kCard(t.key,t.label,true)).join('')+'</div>';
+  $('config').innerHTML=h;
+  const nv=$('kNew');if(nv)nv.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('kAdd').click()}});
+}
+function kLeer(){$('config').querySelectorAll('[data-kval]').forEach(inp=>{KDRAFT[+inp.dataset.kval].valor=inp.value});$('config').querySelectorAll('[data-kext]').forEach(sel=>{KDRAFT[+sel.dataset.kext].extra=sel.value})}
+async function kGuardar(btn){kLeer();const k=KED;const orig=CAT.filter(x=>x.tipo===k);const cambios=[];const vistos=new Set();
+  for(let i=0;i<KDRAFT.length;i++){const x=KDRAFT[i];const v=x.valor.trim();if(!v){toast('Hay un valor vacío',true);return}if(vistos.has(v.toLowerCase())){toast('Valor repetido: '+v,true);return}vistos.add(v.toLowerCase());
+    const o=orig.find(y=>y.valor===x.original);if(!o||o.valor!==v||o.orden!==i+1||o.activo!==x.activo||(o.extra||'')!==(x.extra||''))cambios.push({tipo:k,valor:v,original:x.original||v,orden:i+1,activo:x.activo,extra:x.extra||''})}
+  if(!cambios.length){KED=null;KDRAFT=null;renderK();toast('Sin cambios');return}
+  progress('Guardando el clasificador',null);
+  await busy(btn,async()=>{try{const j=await adminApi({a:'catlote',d:JSON.stringify({cambios})});if(!j.ok){$('pov').hidden=true;toast('No se ha podido guardar: '+j.error,true);return}
+    CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KED=null;KDRAFT=null;renderK();progressEnd(`Guardado: ${cambios.length} ${cambios.length===1?'cambio':'cambios'}`)}catch(e){$('pov').hidden=true;toast('No se ha podido guardar: '+e.message,true)}},'Guardando…')}
 function setupCat(){
   $('admin').addEventListener('click',e=>{const sec=e.target.closest('[data-asec]');if(sec){ASEC=sec.dataset.asec;renderA()}});
-  $('config').addEventListener('change',e=>{if(e.target.id==='catT'){CATSEL=e.target.value;renderK()}});
-  $('config').addEventListener('click',e=>{if(!can('catalogos'))return;
-    if(e.target.id==='catAdd'){const v=$('catNew').value.trim();if(!v){toast('Escribe el valor',true);return}if(CAT.some(x=>x.tipo===CATSEL&&x.valor.toLowerCase()===v.toLowerCase())){toast('Ese valor ya existe',true);return}catSave({valor:v,extra:$('catX')?$('catX').value:''},e.target,'Añadido: '+v);return}
-    const t=e.target.closest('[data-ctog]');if(t){const x=CAT.find(c=>c.tipo===CATSEL&&c.valor===t.dataset.ctog);catSave({valor:x.valor,original:x.valor,orden:x.orden,activo:!x.activo,extra:x.extra},t,x.activo?'Desactivado':'Activado');return}
-    const rn=e.target.closest('[data-cren]');if(rn){const x=CAT.find(c=>c.tipo===CATSEL&&c.valor===rn.dataset.cren);const nv=prompt('Nuevo nombre (los datos que ya usan el nombre antiguo no cambian):',x.valor);if(nv&&nv.trim()&&nv.trim()!==x.valor)catSave({valor:nv.trim(),original:x.valor,orden:x.orden,activo:x.activo,extra:x.extra},rn,'Renombrado');return}
-    const mv=e.target.closest('[data-cmv]');if(mv){const items=CAT.filter(x=>x.tipo===CATSEL).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));const i=+mv.dataset.cmv,j=i+(+mv.dataset.dir);const a=items[i],b=items[j];if(!a||!b)return;
-      busy(mv,async()=>{try{await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:a.valor,original:a.valor,orden:j+1,activo:a.activo,extra:a.extra})});const r=await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:b.valor,original:b.valor,orden:i+1,activo:b.activo,extra:b.extra})});CAT=r.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;renderK()}catch(err){toast('Sin conexión',true)}},'…')}});
+  $('config').addEventListener('click',e=>{const t=e.target;
+    if(t.id==='kRetry'){KERR='';cargarCat();return}
+    if(!can('catalogos'))return;
+    const ed=t.closest('[data-ked]');if(ed){if(KED&&!confirm('Tienes otro clasificador en edición sin guardar. ¿Descartar esos cambios?'))return;KED=ed.dataset.ked;KDRAFT=CAT.filter(x=>x.tipo===KED).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor)).map(x=>({valor:x.valor,original:x.valor,activo:x.activo,extra:x.extra}));renderK();return}
+    if(t.id==='kNewT'){KED='__nuevo';KDRAFT=null;renderK();setTimeout(()=>$('kTN')&&$('kTN').focus(),30);return}
+    if(t.id==='kCancel'){KED=null;KDRAFT=null;renderK();return}
+    if(t.id==='kAdd'){kLeer();const v=$('kNew').value.trim();if(!v)return;if(KDRAFT.some(x=>x.valor.toLowerCase()===v.toLowerCase())){toast('Ese valor ya está',true);return}KDRAFT.push({valor:v,original:'',activo:true,extra:KED==='RESULTADO'?'pos':''});renderK();$('kNew')&&$('kNew').focus();return}
+    const mv=t.closest('[data-kmv]');if(mv){kLeer();const i=+mv.dataset.kmv,j=i+(+mv.dataset.dir);[KDRAFT[i],KDRAFT[j]]=[KDRAFT[j],KDRAFT[i]];renderK();return}
+    const ac=t.closest('[data-kact]');if(ac){kLeer();KDRAFT[+ac.dataset.kact].activo=ac.dataset.v==='1';renderK();return}
+    if(t.id==='kSave'){kGuardar(t);return}
+    const kd=t.closest('[data-kdel]');if(kd&&canTodoK()){kLeer();const i=+kd.dataset.kdel,x=KDRAFT[i];
+      if(!x.original){KDRAFT.splice(i,1);renderK();return}
+      if(!confirm(`¿Eliminar "${x.original}" de ${tipoLabel(KED)}? Los médicos y visitas que ya lo usan conservan el valor, pero no aparecerá en los desplegables. Si solo quieres ocultarlo, márcalo como Inactivo.`))return;
+      busy(kd,async()=>{try{const j=await adminApi({a:'catdel',tipo:KED,valor:x.original});if(!j.ok){toast('No se ha podido eliminar: '+j.error,true);return}CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KDRAFT.splice(i,1);renderK();toast('Eliminado: '+x.original)}catch(err){toast('No se ha podido eliminar: '+err.message,true)}},'…');return}
+    const kt=t.closest('[data-kdelt]');if(kt&&canTodoK()){const k=kt.dataset.kdelt;if(!confirm(`¿Eliminar el clasificador "${k}" y todos sus valores? Los médicos conservarán el valor en la hoja, pero dejará de aparecer en fichas y filtros.`))return;
+      busy(kt,async()=>{try{const j=await adminApi({a:'catdel',tipo:'__TIPO',valor:k});if(!j.ok){toast('No se ha podido eliminar: '+j.error,true);return}CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;renderK();toast('Clasificador eliminado')}catch(err){toast('No se ha podido eliminar: '+err.message,true)}},'Eliminando…');return}
+    if(t.id==='kCreate'){const n=$('kTN').value.trim();const vals=$('kTV').value.split('\n').map(x=>x.trim()).filter(Boolean);
+      if(!n){toast('Ponle un nombre',true);return}if(SYS_T.includes(n.toUpperCase())||tiposCustom().some(x=>x.key.toLowerCase()===n.toLowerCase())){toast('Ya existe un clasificador con ese nombre',true);return}
+      const cambios=[{tipo:'__TIPO',valor:n,orden:tiposCustom().length+1,activo:true,extra:'custom'}].concat([...new Set(vals)].map((v,i)=>({tipo:n,valor:v,orden:i+1,activo:true,extra:''})));
+      progress('Creando el clasificador',null);
+      busy(t,async()=>{try{const j=await adminApi({a:'catlote',d:JSON.stringify({cambios})});if(!j.ok){$('pov').hidden=true;toast('No se ha podido crear: '+j.error,true);return}CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;KED=null;renderK();progressEnd('Clasificador creado: '+n)}catch(err){$('pov').hidden=true;toast('No se ha podido crear: '+err.message,true)}},'Creando…')}});
 }
 
 /* ================= v1.5.1: duplicados (administración) ================= */
@@ -961,8 +1025,8 @@ function setupDups(){
 /* ================= v1.5.2: ruta rápida desde el mapa ================= */
 const PRIO_Q={dist:'Más cerca primero',urg:'Urgentes y pendientes primero',seg:'Seguimiento: interesados y presentados',sin:'Sin visitar primero'};
 function openQuickRoute(){
-  const f=filtered().filter(([d,c])=>xyOf(c));if(!f.length){toast('No hay médicos con ubicación en el mapa',true);return}
-  $('ubody').innerHTML=`<h3>Crear ruta con los médicos del mapa</h3><p class="sm">${f.length.toLocaleString('es')} médicos disponibles con los filtros actuales. La ruta empieza ahora.</p>
+  const f=(S.map&&LMAP?MAPVIS:filtered()).filter(([d,c])=>xyOf(c));if(!f.length){toast('No hay médicos visibles en el mapa',true);return}
+  $('ubody').innerHTML=`<h3>Crear ruta con los médicos del mapa</h3><p class="sm">${f.length.toLocaleString('es')} médicos visibles en el mapa. La ruta empieza ahora.</p>
    <div class="grid2"><div><label for="qrH">Tiempo disponible</label><select id="qrH">${[1,1.5,2,3,4,5,6,8].map(h=>`<option value="${h}" ${h===3?'selected':''}>${String(h).replace('.',',')} h</option>`).join('')}</select></div>
    <div><label for="qrS">Salida</label><select id="qrS"><option value="me">Desde mi ubicación</option><option value="home">Desde Santpedor</option></select></div></div>
    <label for="qrP">Prioridad</label><select id="qrP">${Object.entries(PRIO_Q).map(([k,t])=>`<option value="${k}">${t}</option>`).join('')}</select>
@@ -996,6 +1060,14 @@ function quickRoute(f,start,o){
     if(!best)break;best.seq.forEach(x=>done.add(x.d.c));stops.push(best);t=best.end;pos=best.ct.xy;posB=best.ct.bcn}
   return {di:0,stops,llegada:t,home:0,visitas:done.size,miss:[],quick:true};
 }
+
+function revisarDup(c){const d=BYCODE.get(c);if(!d)return;const cands=String(d.dupDe||'').split(',').map(x=>{const m=/(\d+)\s*\((\d+)%\)/.exec(x);return m?{c:+m[1],pct:+m[2]}:null}).filter(Boolean);
+  const card=x=>x?`<div class="dc"><div class="nm">${esc(x.n)}</div><div class="sm">Código ${x.c}${x.e?' · '+esc(x.e):''}</div><div class="sm">${esc([x.cons[0].ce,x.cons[0].d,x.cons[0].m].filter(Boolean).join(' · '))}</div><div class="sm">${(segOf(x.c)&&segOf(x.c).visitas||[]).length} visitas · ${estadoDe(x)}</div></div>`:'<div class="dc sm">No disponible en este dispositivo</div>';
+  $('ubody').innerHTML=`<h3>Revisar posible duplicado</h3><p class="sm">Si son la misma persona, unifica en el registro que ya existía: se moverán consultas, visitas, citas y asignaciones.</p>`+
+   (cands.length?cands.map(k=>`<div class="duppar"><div><div class="sm"><b>Nuevo</b></div>${card(d)}</div><div class="pct">${k.pct}%</div><div><div class="sm"><b>Ya existía</b></div>${card(BYCODE.get(k.c))}</div>
+    <div class="da"><button type="button" class="btn sec" data-rnd="${d.c}">No es duplicado</button><button type="button" class="btn" data-run="${d.c}" data-en="${k.c}">Unificar en el existente</button></div></div>`).join(''):'<p class="sm">No hay candidatos guardados.</p>')+
+   `<div class="acts"><button type="button" class="btn sec" id="uCancel">Cerrar</button></div>`;
+  $('uCancel').onclick=()=>$('udlg').close();$('udlg').showModal()}
 
 /* ================= Plan del día ================= */
 const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};
@@ -1181,12 +1253,12 @@ function runPlan(){
 /* ================= Editar ficha ================= */
 const CPD={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 const FICHA=new Map();
-const ORIG=new Map(DATA.map(d=>[d.c,JSON.stringify({cons:d.cons,e:d.e,tel:d.tel,q:d.q,a:d.a})]));
+const ORIG=new Map(DATA.map(d=>[d.c,JSON.stringify({cons:d.cons,e:d.e,tel:d.tel,q:d.q,a:d.a,clas:d.clas||{}})]));
 const upperNoAcc=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
 function applyFicha(code){
   const d=BYCODE.get(code); if(!d)return; const o=JSON.parse(ORIG.get(code)); Object.assign(d,o); d.ed=null;
   const f=FICHA.get(code); if(!f)return;
-  if(f.e)d.e=f.e; if(f.tel)d.tel=f.tel;
+  if(f.e)d.e=f.e; if(f.tel)d.tel=f.tel; if(f.clas)d.clas={...(d.clas||{}),...f.clas};
   if(Array.isArray(f.cons)&&f.cons.length){
     d.cons=f.cons.map(c=>{const m=upperNoAcc(c.m)||BCN; const cp=(c.cp||'').trim();
       const di=m===BCN?(c.di||CPD[cp]||null):null;
@@ -1221,27 +1293,31 @@ function openEdit(code,nd){
   $('eTitle').textContent=nd?'Nuevo médico':d.n; $('eSub').textContent=nd?'Se añadirá a tu hoja de Google':(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
   $('eEsp').value=d.e||''; $('eTel').value=d.tel||''; $('eCont').value=f.contacto||segOf(code)?.contacto||''; $('eNota').value=f.nota||'';
   $('eCons').innerHTML=d.cons.map((c,i)=>consRow(c,i)).join('');
+  const tc=tiposCustom().filter(t=>t.activo);$('eClas').innerHTML=tc.length?`<div class="sm" style="margin-top:12px;font-weight:600">Clasificadores</div><div class="grid2">${tc.map(t=>`<div><label>${esc(t.label)}</label><select data-clas="${esc(t.key)}"><option value="">—</option>${catVals(t.key).map(v=>`<option ${((d.clas||{})[t.key]||'')===v?'selected':''}>${esc(v)}</option>`).join('')}</select></div>`).join('')}</div>`:'';
   $('eMsg').textContent=DB?'':'Para guardar, abre el explorador desde su enlace de Claude.'; $('eSave').disabled=!DB;
   $('edlg').showModal();
 }
 function readEdit(){
   const cons=[...$('eCons').querySelectorAll('fieldset')].map(fs=>{const g=f=>fs.querySelector(`[data-f="${f}"]`).value.trim();
     return {ce:g('ce'),m:g('m')||'BARCELONA',d:g('d'),cp:g('cp'),tel:g('tel'),dy:[...fs.querySelectorAll('[data-dy]')].map(i=>i.value.trim())}}).filter(c=>c.ce||c.d);
-  return {c:EDCODE,n:NEWD?upperNoAcc($('eName').value).replace(/\s*,\s*/,', '):BYCODE.get(EDCODE).n,e:$('eEsp').value.trim(),tel:$('eTel').value.trim(),contacto:$('eCont').value.trim(),nota:$('eNota').value.trim(),cons,upd:today()};
+  const clas={};$('eClas').querySelectorAll('[data-clas]').forEach(s=>clas[s.dataset.clas]=s.value);
+  return {clas,c:EDCODE,n:NEWD?upperNoAcc($('eName').value).replace(/\s*,\s*/,', '):BYCODE.get(EDCODE).n,e:$('eEsp').value.trim(),tel:$('eTel').value.trim(),contacto:$('eCont').value.trim(),nota:$('eNota').value.trim(),cons,upd:today()};
 }
 async function saveEdit(){ return saveEdit_() }
 async function saveEdit_(){
   if(!DB||!EDCODE)return; const doc=readEdit();
   if(NEWD&&!/,/.test(doc.n)){$('eMsg').textContent='Escribe el nombre como APELLIDOS, NOMBRE (con coma).';return}
-  if(NEWD&&!$('eForm').dataset.dupok){$('eMsg').innerHTML='<span class="spin"></span> Buscando coincidencias en toda la base…';
+  if(NEWD&&!$('eForm').dataset.dupok){window.__dupAlto=null;$('eMsg').innerHTML='<span class="spin"></span> Buscando coincidencias en toda la base…';
     let cand=[];try{const j=await adminApi({a:'dup',n:doc.n,e:doc.e,m:(doc.cons[0]||{}).m||''});if(j.ok)cand=j.cand}catch(err){cand=posiblesDuplicados(doc.n).map(d=>({pct:null,c:d.c,n:d.n,e:d.e,ce:d.cons[0].ce,m:d.cons[0].m}))}
-    const alto=cand.filter(k=>k.pct==null||k.pct>=70);
+    const alto=cand.filter(k=>k.pct==null||k.pct>=70);window.__dupAlto=alto;
     if(alto.length){$('eMsg').innerHTML=`<div class="warn" style="margin:0"><b>Posible médico ya registrado</b><br>`+alto.map(k=>k.oculto?`Coincidencia del <b>${k.pct}%</b> con un médico que no tienes asignado${k.e?' ('+esc(k.e)+')':''}.`:`<b>${k.pct!=null?k.pct+'%':'Parecido'}</b> · <a href="#" data-dupopen="${k.c}">${esc(k.n)}</a> (${esc(k.e||'')}${k.ce?', '+esc(k.ce):''}${k.m?', '+esc(k.m):''})`).join('<br>')+`<br>Si es otra persona, pulsa <b>Guardar ficha</b> otra vez: quedará como <b>pendiente de unificar</b> y el administrador lo revisará.</div>`;$('eForm').dataset.dupok='1';return}
     $('eMsg').textContent='';}
   if(!doc.cons.length){$('eMsg').textContent='Deja al menos una consulta con centro o dirección.';return}
   const urgOn=$('eUrg').checked, motivo=$('eUrgM').value.trim();
   if(NEWD){doc.nuevo=true;doc.a=$('eArea').value;if(urgOn)doc.prioridad='Urgente · '+(motivo||'Marcado desde la app');
-    const nd={...NEWD,n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};addDoctor(nd);}
+    const nd={...NEWD,n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};
+    if($('eForm').dataset.dupok&&window.__dupAlto&&window.__dupAlto.length){nd.dup='Pendiente de unificar';nd.dupDe=window.__dupAlto.filter(k=>!k.oculto&&k.c).map(k=>k.c+' ('+(k.pct||70)+'%)').join(', ')}
+    addDoctor(nd);}
   else{const d=BYCODE.get(EDCODE);const want=urgOn?(motivo||'Marcado desde la app'):'';if(want!==(d.top||''))setUrgent(d.c,urgOn,motivo);}
   $('eSave').disabled=true;$('eMsg').textContent='Guardando…';
   try{await DB.collection('fichas').doc(String(EDCODE)).set(doc);FICHA.set(EDCODE,doc);applyFicha(EDCODE);$('edlg').close();afterEdit();toast(NEWD?'Médico añadido':'Ficha guardada');}
@@ -1393,8 +1469,9 @@ async function setupDb(){
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
   $('syncBtn').onclick=e=>busy(e.target,async()=>{const n=obxGet().length;if(n)progress(`Enviando ${n} ${n===1?'cambio':'cambios'}`,null);await flush();if(n)$('pov').hidden=true;progress('Comprobando datos nuevos',null);await checkUpdates();$('pov').hidden=true;toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
+  $('cfgK').onclick=()=>{S.tab='K';render();window.scrollTo({top:0})};
   $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b><div class="sm">Usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</div>`;$('cfgAdminS').hidden=!USER.perm.admin;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML='';
-    $('cfgDatos').textContent=(datosTxt()||'Sin datos')+' · '+DATA.length.toLocaleString('es')+' médicos en este dispositivo'+(obxGet().length?' · '+obxGet().length+' cambios pendientes de enviar':'');$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'');$('cfgDlg').showModal()};
+    $('cfgDatos').textContent=(datosTxt()||'Sin datos')+' · '+DATA.length.toLocaleString('es')+' médicos en este dispositivo'+(obxGet().length?' · '+obxGet().length+' cambios pendientes de enviar':'');$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: comprobando…';window.__api({a:'ping'},15000).then(j=>{$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: '+(j&&j.v?j.v:'versión antigua')}).catch(()=>{$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: sin respuesta'});$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>{$('cfgDlg').close();render()};
   $('cfgMaps').onchange=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);toast('Guardado: '+$('cfgMaps').selectedOptions[0].textContent)};
   $('cfgVer').onclick=e=>busy(e.target,()=>checkVersion(true),'Buscando…');
