@@ -7,7 +7,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#123A63">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -260,16 +260,35 @@ input::-webkit-date-and-time-value{text-align:left}
   .resb button{padding:12px 8px}
   .urgrow{grid-template-columns:1fr}
 }
+
+/* ---------- v1.3 ---------- */
+.brand{display:flex;gap:12px;align-items:center}
+.logo{height:44px;width:auto}
+.mod{font:inherit;font-size:14px;font-weight:600;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:var(--panel);vertical-align:middle;margin-left:6px}
+#map{height:min(70vh,640px);width:100%;background:var(--bg)}
+#mapWrap .legend{flex-wrap:wrap}
+.estb{display:inline-block;border-radius:999px;font-size:11.5px;font-weight:700;padding:2px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.estb[data-e="Presentado"]{background:#E6EEF6;color:#123A63;border-color:#C9D9EA}.estb[data-e="Interesado"]{background:#FCEBD0;color:#8A5A00;border-color:#F2D7A8}
+.estb[data-e="Prescribe"]{background:#DCF1E6;color:#1F6F4A;border-color:#B9E2CC}.estb[data-e="No interesado"]{background:#F6E1E1;color:#8A2A2A;border-color:#EAC6C6}
+.funnel{padding:0 14px 14px}.funnel h3{font-size:15px;color:var(--navy);margin:0 0 8px}
+.fstep{display:grid;grid-template-columns:130px minmax(0,1fr) 54px;gap:10px;align-items:center;margin:6px 0;cursor:pointer;border:0;background:none;width:100%;text-align:left;padding:0}
+.fstep .fb{height:14px;background:var(--bg);border-radius:7px;overflow:hidden}.fstep .fb span{display:block;height:100%;background:var(--navy)}
+.fstep b{text-align:right;color:var(--navy)}
+.chk{background:#DCF1E6;color:#1F6F4A;border-radius:10px;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-weight:600}
+.hint{font-size:12.5px;color:var(--ok);margin-top:4px}
+.leaflet-popup-content{font:13px/1.4 "Public Sans",system-ui,sans-serif}
+@media (max-width:760px){ .logo{height:34px} header.top h1{font-size:16px} .mod{font-size:13px} .fstep{grid-template-columns:100px minmax(0,1fr) 44px} #map{height:62vh} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div><h1>DLC OS · Rutas y médicos</h1><p id="sub"></p></div>
+    <div class="brand"><img src="logo.png" alt="DLC Health Group" class="logo"><div><h1>DLC OS <select id="modSel" class="mod" aria-label="Módulo"><option value="rutas" selected>Rutas y médicos</option><option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option></select></h1><p id="sub"></p></div></div>
     <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
   </header>
   <div class="qs"><input id="qs" type="search" placeholder="Buscar médico, centro o municipio" autocomplete="off" spellcheck="false" enterkeyhint="search"><div class="qsr" id="qsr" hidden></div></div>
+  <div class="chk" id="chkBar" hidden></div>
   <div class="warn" id="newData" hidden style="margin:0 0 12px">Hay datos nuevos en la hoja de Google. <button type="button" class="reg" id="newDataBtn">Actualizar ahora</button></div>
 
   <section class="ask" id="ask" hidden>
@@ -296,6 +315,7 @@ input::-webkit-date-and-time-value{text-align:left}
       <div class="f"><label for="fTipo">Tipo</label><select id="fTipo"></select></div>
       <div class="f"><label for="fTexto">Nombre contiene</label><input type="text" id="fTexto"></div>
       <div class="f checks"><label><input type="checkbox" id="fTop"> Solo médicos urgentes</label></div>
+      <div class="f"><label for="fEst">Estado comercial</label><select id="fEst"><option value="">Todos</option><option>Sin contactar</option><option>Presentado</option><option>Interesado</option><option>Prescribe</option><option>No interesado</option></select></div>
       <div class="f"><label for="fSeg">Seguimiento</label><select id="fSeg"><option value="">Todos</option><option value="sin">Sin visitar</option><option value="vis">Visitados</option><option value="prox">Con próxima acción</option></select></div>
     </aside>
 
@@ -330,13 +350,14 @@ input::-webkit-date-and-time-value{text-align:left}
       <section class="panel" id="viewM" hidden>
         <div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
-          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="mapBtn">Ver mapa</button><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl deskonly" id="dlx">Descargar Excel</button><button class="dl deskonly" id="dl" hidden>Descargar CSV</button></span>
         </div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Centro</th><th>Municipio</th><th>Dirección</th><th>Teléfono</th><th>Días</th><th>Ubicación</th><th>Visita</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table></div>
+        <div id="mapWrap" hidden><div id="map"></div><div class="legend" id="mapLeg"></div></div>
         <div class="cards" id="mcards"></div>
         <button class="more" id="more" hidden>Mostrar 100 más</button>
       </section>
@@ -350,6 +371,7 @@ input::-webkit-date-and-time-value{text-align:left}
       </section>
       <section class="panel" id="viewS" hidden>
         <div class="stats" id="stats"></div>
+        <div class="funnel" id="funnel"></div>
         <div class="opts" style="justify-content:flex-end"><button class="dl" id="shareBtn">Compartir resumen de la semana</button><button class="dl deskonly" id="dlSeg" hidden>Descargar seguimiento (CSV)</button></div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Última visita</th><th>Resultado</th><th>Horario captado</th><th>Contacto</th><th>Próxima acción</th></tr></thead>
@@ -403,9 +425,9 @@ input::-webkit-date-and-time-value{text-align:left}
   <label for="cfgMaps">App de mapas para "Cómo llegar"</label><select id="cfgMaps"><option value="google">Google Maps</option><option value="apple">Apple Maps</option></select>
   <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec deskonly" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
-<div id="boot"><div class="card" id="bootCard"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
+<div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.2.0';
+window.__APPVER='1.3.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -430,17 +452,17 @@ function transform(raw){
   const M=tbl(raw.MEDICOS),C=tbl(raw.CONSULTAS),N=tbl(raw.NOTAS_VISITA); const DI={L:0,M:1,X:2,J:3,V:4};
   const cons=new Map(); C.forEach(x=>{if(x['CÓDIGO']==='')return;const c=+x['CÓDIGO'];(cons.get(c)||cons.set(c,[]).get(c)).push(x)});
   const notas=new Map(); N.forEach(x=>{if(x['CÓDIGO']==='')return;const c=+x['CÓDIGO'];(notas.get(c)||notas.set(c,[]).get(c)).push([DI[x['DÍA']],x['FRANJA']==='Mañana'?'M':'T',x['DETALLE']||''])});
-  const mk=x=>{const m=x['MUNICIPIO']||'';const cp=String(x['CP']||'');return {ce:x['CENTRO']||null,g:x['GRUPO']||x['CENTRO']||null,m,p:x['PROVINCIA']||'',d:x['DIRECCIÓN']||null,di:x['DISTRITO']||(m==='BARCELONA'?CPD0[cp]||null:null),cp,tel:x['TELÉFONO']||null,dy:['L','M','X','J','V'].map(k=>x[k]||''),cf:(x['CONFIRMADA']||'Sí')==='Sí'}};
+  const mk=x=>{const m=x['MUNICIPIO']||'';const cp=String(x['CP']||'');return {ce:x['CENTRO']||null,g:x['GRUPO']||x['CENTRO']||null,m,p:x['PROVINCIA']||'',d:x['DIRECCIÓN']||null,di:x['DISTRITO']||(m==='BARCELONA'?CPD0[cp]||null:null),cp,tel:x['TELÉFONO']||null,dy:['L','M','X','J','V'].map(k=>x[k]||''),cf:(x['CONFIRMADA']||'Sí')==='Sí',lat:parseFloat(x['LAT'])||null,lon:parseFloat(x['LON'])||null}};
   return M.filter(x=>x['CÓDIGO']!==''&&!isNaN(+x['CÓDIGO'])).map(x=>{const c=+x['CÓDIGO'];const pr=x['PRIORIDAD COMERCIAL']||'';
     let cs=(cons.get(c)||[]).sort((a,b)=>(+a['ORDEN'])-(+b['ORDEN'])).map(mk); if(!cs.length)cs=[mk(x)];
     return {c,t:x['TIPO']||'Persona',n:x['NOMBRE COMPLETO']||'',e:x['ESPECIALIDAD']||'',a:x['ÁREA']||'',car:x['CARGO']||'',eq:x['EQUIPO O UNIDAD']||'',ub:x['UBICACIÓN EN EL CENTRO']||'',
       p:x['PROVINCIA']||'',m:x['MUNICIPIO']||'',ce:x['CENTRO']||'',g:x['GRUPO']||x['CENTRO']||'',d:x['DIRECCIÓN']||'',cp:String(x['CP']||''),di:x['DISTRITO']||'',tel:x['TELÉFONO']||'',
       q:x['CALIDAD DE LA UBICACIÓN']||'Sin verificar: dato original sin dirección',st:x['ESTADO DE BÚSQUEDA']||'',url:x['URL FICHA']||'',cons:cs,
-      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||''}});
+      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||'',est:x['ESTADO COMERCIAL']||''}});
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.2.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.3.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
