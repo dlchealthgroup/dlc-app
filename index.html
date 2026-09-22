@@ -566,6 +566,26 @@ h3[tabindex="-1"]:focus{outline:none}
 .rmapbox{margin:10px 0}#rmap{height:min(60vh,520px);border:1px solid var(--line);border-radius:12px}
 .rpin span{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;color:#fff;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 @media (max-width:760px){.hgrid{grid-template-columns:1fr}.hrec .recs{grid-template-columns:1fr}.topbar{grid-template-columns:auto minmax(0,1fr)}.dpg{grid-template-columns:62px minmax(0,1fr) minmax(0,1fr)!important}}
+
+/* ---------- v1.8 ---------- */
+.khdr{display:flex;justify-content:flex-end;margin:0 0 6px}.kcfg{border:0;background:none;color:var(--navy);font-weight:600;cursor:pointer;font-size:13px}
+.kpil{display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow:auto}
+.kpir{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--panel)}
+.kpir.off{opacity:.6}.kpir input[type=checkbox]{width:18px!important;height:18px}.kpir input:not([type=checkbox]),.kpir select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--bg);min-width:0}
+.kpir .gl{font-weight:600}
+.gridbar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 14px;border-top:1px solid var(--line);background:var(--bg)}
+.tablewrap{overflow-x:auto}.tablewrap table td,.tablewrap table th{overflow:hidden;text-overflow:ellipsis;word-break:break-word}
+.crearop{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.copt{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:16px;cursor:pointer}
+.copt:hover{border-color:var(--navy);box-shadow:0 0 0 2px rgba(18,58,99,.1)}.copt .ci{font-size:26px}.copt b{font-size:16px;color:var(--navy)}
+#edlg.escentro div:has(> label[for="eEsp"]),#edlg.escentro label[for="eArea"],#edlg.escentro #eArea,#edlg.escentro .urgrow,#edlg.escentro #eClas{display:none}
+.unitab{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:10px}
+.unitab .uh,.unitab .ur{display:grid;grid-template-columns:130px minmax(0,1fr) minmax(0,1fr);gap:8px;padding:8px 10px;align-items:center}
+.unitab .uh{background:var(--bg);font-size:12px;font-weight:700;color:var(--muted)}.unitab .ur{border-top:1px solid var(--line)}
+.unitab label{display:flex!important;gap:6px;align-items:flex-start;margin:0!important;padding:6px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--ink)!important;font-size:13.5px!important}
+.unitab label.on{border-color:var(--navy);background:var(--sky-soft)}.unitab input{width:auto!important;margin-top:2px}
+.dc.uni-m{border-color:var(--navy)!important;box-shadow:0 0 0 2px rgba(18,58,99,.15)}
+@media (max-width:760px){.crearop{grid-template-columns:1fr}.unitab .uh,.unitab .ur{grid-template-columns:1fr}.kpir{grid-template-columns:auto minmax(0,1fr)}.kpir select,.kpir .catord{grid-column:2}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -656,7 +676,7 @@ h3[tabindex="-1"]:focus{outline:none}
         <div id="mdups" hidden></div><div id="mlista"><div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
           <button type="button" class="dl duppill" id="dupPill" hidden></button><button type="button" class="dl" id="dupBtn" style="display:none">Duplicados</button>
-          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="mapBtn">Ver mapa</button><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="mapBtn">Ver mapa</button><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Crear nuevo</button></span>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl deskonly" id="dlx">Descargar Excel</button><button class="dl deskonly" id="dl" hidden>Descargar CSV</button></span>
         </div>
         <div class="tablewrap"><table>
@@ -689,7 +709,7 @@ h3[tabindex="-1"]:focus{outline:none}
       </section>
       <dialog id="edlg"><form method="dialog" id="eForm" class="fi">
         <h3 id="eTitle" tabindex="-1" autofocus></h3><div class="sm" id="eSub"></div>
-        <div id="eNewRow" hidden><label for="eName">Apellidos, Nombre</label><input id="eName" placeholder="p. ej. GARCIA LOPEZ, ANA" autocapitalize="characters">
+        <div id="eNewRow" hidden><label for="eName" id="eNameL">Apellidos, Nombre</label><input id="eName" placeholder="p. ej. GARCIA LOPEZ, ANA" autocapitalize="characters">
         <label for="eArea">Área</label><select id="eArea"><option>Aparato locomotor y dolor</option><option>Atención primaria</option><option>Otras especialidades</option></select></div>
         <div class="urgrow"><div><div class="sm" style="margin-bottom:4px">Prioridad de visita</div><div class="seg" id="eUrgSeg"><button type="button" data-u="0">Normal</button><button type="button" data-u="1">★ Urgente</button></div><input type="checkbox" id="eUrg" hidden></div><input id="eUrgM" placeholder="Motivo de la urgencia (opcional)"></div>
         <div class="grid2"><div><label for="eEsp">Especialidad</label><div class="cbw"><input id="eEsp" data-cb="esp" autocomplete="off" placeholder="Escribe o elige"><button type="button" class="cbt" tabindex="-1" aria-label="Ver lista">▾</button></div></div><div><label for="eTel">Teléfono</label><input id="eTel" inputmode="tel"></div></div>
@@ -709,7 +729,7 @@ h3[tabindex="-1"]:focus{outline:none}
         <label for="vMu">Muestras de DOLNER entregadas</label><input id="vMu" type="number" min="0" max="99" inputmode="numeric" placeholder="0">
         <label for="vCentro">Centro de la visita</label><select id="vCentro"></select>
         <label>Días y horario de consulta</label>
-        <div class="grid5" id="vDias"></div>
+        <div id="vDias"></div>
         <label for="vContacto">Contacto (secretaría, teléfono, email)</label><input id="vContacto">
         <label for="vNota">Nota</label><textarea id="vNota" rows="3"></textarea>
         <div class="grid2"><div><label for="vProx">Próxima acción</label><input id="vProx" placeholder="p. ej. volver con muestras"></div>
@@ -745,12 +765,11 @@ h3[tabindex="-1"]:focus{outline:none}
     <div class="sm">Se guarda al momento en este dispositivo.</div></section>
   <section class="cfgs"><h4>Datos</h4><div class="sm" id="cfgDatos"></div>
     <div class="cfgrow"><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec deskonly" id="cfgXlsx">Descargar todo en Excel</button></div><div id="cfgMsg"></div></section>
-  <section class="cfgs" id="cfgAdminS" hidden><h4>Administración</h4><div class="cfgrow"><button type="button" class="btn sec" id="cfgAdmin">Usuarios, roles y asignaciones</button></div></section>
   <section class="cfgs"><h4>Aplicación</h4><div class="sm" id="cfgVerTxt"></div><div class="cfgrow"><button type="button" class="btn sec" id="cfgVer">Buscar actualizaciones</button></div></section>
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.7.1';
+window.__APPVER='1.8.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -814,7 +833,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.7.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.8.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){

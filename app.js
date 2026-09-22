@@ -226,7 +226,7 @@ function render(){
   const nf=[S.prov,S.muni,S.grupo,S.centro,S.area,S.esp,S.tipo,S.texto,S.seg,S.est,S.issue].filter(Boolean).length+(S.dias.length?1:0)+(S.cal.length?1:0)+(S.top?1:0);$('fBtn').textContent=nf?`Filtros · ${nf}`:'Filtros';$('fBtn').classList.toggle('on',!!nf);
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
   if(S.tab==='A')renderA(); else if(S.tab==='K')renderK(); else if(S.tab==='G')renderG(); else if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
-  chkBar();rutaBar();
+  chkBar();rutaBar();try{applyGrids()}catch(e){}
   $('foot').textContent=datosTxt();
   $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('noinfo',!$('count').textContent.trim()&&noF);
 }
@@ -380,13 +380,13 @@ function init(){
   on('nearBtn','click',e=>nearMe(e.target));
   document.addEventListener('click',async e=>{const er=e.target.closest('#day [data-editruta]');if(er){abrirRuta(er.dataset.editruta);return}if(e.target.id==='mrBtn')openQuickRoute();if(e.target.id==='dupPill'||e.target.id==='dupBtn'){if(PERM.admin){S.mview=S.mview==='dups'&&e.target.id==='dupBtn'?'lista':'dups';DUPS=null;DUPERR=''}else{clearFilters();S.dupf=true}S.tab='M';S.limit=100;render();window.scrollTo({top:0})}
     const rv=e.target.closest('[data-revdup]');if(rv){revisarDup(+rv.dataset.revdup);return}
-    const ru=e.target.closest('[data-run]');if(ru){const de=+ru.dataset.run,en=+ru.dataset.en;if(!await appConfirm(`¿Unificar el código ${de} en el ${en}? No se puede deshacer desde la app.`))return;busy(ru,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}$('udlg').close();render();toast('Unificado')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
+    const ru=e.target.closest('[data-run]');if(ru){openUnificar(+ru.dataset.run,+ru.dataset.en);return}
     const rn=e.target.closest('[data-rnd]');if(rn){const c=+rn.dataset.rnd;busy(rn,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){const d=BYCODE.get(c);if(d)d.dup='Revisado';$('udlg').close();render();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
   on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L){progress('Cargando el mapa',30);busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>{render();progressEnd()})}else render()});
   on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b||!tabOk('M'))return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b||!tabOk('M'))return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   document.addEventListener('change',e=>{const q=e.target.closest('[data-qest]');if(q)setEstado(+q.dataset.qest,q.value)});
-  document.addEventListener('click',e=>{const a=e.target.closest('[data-qopen]');if(a){e.preventDefault();openQuick(+a.dataset.qopen);return}const du=e.target.closest('[data-dupopen]');if(du){e.preventDefault();$('edlg').close();openQuick(+du.dataset.dupopen)}});on('newBtn','click',openNew);on('shareBtn','click',shareWeek);
+  document.addEventListener('click',e=>{const a=e.target.closest('[data-qopen]');if(a){e.preventDefault();openQuick(+a.dataset.qopen);return}const du=e.target.closest('[data-dupopen]');if(du){e.preventDefault();$('edlg').close();openQuick(+du.dataset.dupopen)}});on('newBtn','click',()=>openCrear());on('shareBtn','click',shareWeek);
   let qt;on('qs','input',e=>{clearTimeout(qt);qt=setTimeout(()=>quickSearch(e.target.value),150)});
   on('qs','focus',e=>quickSearch(e.target.value));
   document.addEventListener('click',e=>{if(!e.target.closest('.qs'))$('qsr').hidden=true});
@@ -401,7 +401,7 @@ function init(){
   document.addEventListener('click',async e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();if(!can('urgente'))return;const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(await appConfirm('¿Quitar a '+d.n+' de urgentes?',{ok:'Quitar'}))setUrgent(d.c,false)}else{const m=await appPrompt('Motivo (opcional). Puedes escribirlo o elegir uno:','',{titulo:'Marcar '+d.n+' como urgente',ok:'Marcar urgente',opciones:catVals('MOTIVO_URGENCIA')});if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
-  on('hoy','click',e=>{const rc=e.target.closest('[data-rec]');if(rc){const r=(window.__RECS||[])[+rc.dataset.rec];if(r)planificarCodigos(r.t,r.codes,rc);return}const pb=e.target.closest('[data-plan]');if(pb){planificarRuta(pb.dataset.plan,pb);return}const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='agenda'){S.tab='G';render();window.scrollTo({top:0})}else if(k==='seg'){S.tab='S';render();window.scrollTo({top:0})}else if(k==='urg'){clearFilters();S.top=true;S.seg='sin';S.tab='M';S.mview='lista';render();window.scrollTo({top:0})}else if(k==='dups'){S.mview='dups';DUPS=null;DUPERR='';S.tab='M';render();window.scrollTo({top:0})}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
+  on('hoy','click',e=>{const rc=e.target.closest('[data-rec]');if(rc){const r=(window.__RECS||[])[+rc.dataset.rec];if(r)planificarCodigos(r.t,r.codes,rc);return}const pb=e.target.closest('[data-plan]');if(pb){planificarRuta(pb.dataset.plan,pb);return}const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openCrear();else if(k==='agenda'){S.tab='G';render();window.scrollTo({top:0})}else if(k==='seg'){S.tab='S';render();window.scrollTo({top:0})}else if(k==='urg'){clearFilters();S.top=true;S.seg='sin';S.tab='M';S.mview='lista';render();window.scrollTo({top:0})}else if(k==='kpicfg'){abrirKpiCfg()}else if(k==='dups'){S.mview='dups';DUPS=null;DUPERR='';S.tab='M';render();window.scrollTo({top:0})}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
     const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
     const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;busy(p,()=>{P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})},'Calculando la ruta…')}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
@@ -551,7 +551,7 @@ function renderH(){
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
-  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pendientesRuta().length,'pendientes de rutas anteriores','clock',pendientesRuta().length?'k-warn':'k-ok')}${PERM.admin&&DATA.some(d=>d.dup==='Pendiente de unificar')?kpi(DATA.filter(d=>d.dup==='Pendiente de unificar').length,'médicos pendientes de unificar · revisar','user','k-warn','','data-h="dups" role="button" style="cursor:pointer"'):''}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
+  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Crear nuevo</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="khdr"><button type="button" class="kcfg" data-h="kpicfg">⚙ Personalizar indicadores</button></div><div class="kpis">${renderKpis({td,due,urg,weekV,weekMu,pend,ms})}</div>`;
   const lim=(arr,n)=>({ver:arr.slice(0,n),mas:Math.max(0,arr.length-n)});
   const crow=(d,sub,extra)=>{const c=d.cons[0];return `<div class="crow"><button type="button" class="cmain" data-q="${d.c}"><b>${d.top?'<span class="topb">U</span> ':''}${esc(d.n)}</b><span class="sm">${sub||esc([c.ce,c.m].filter(Boolean).join(' · '))}</span></button><span class="cacts">${extra||''}${can('registrar')?`<button type="button" class="reg" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>`:''}</span></div>`};
   const box=(t,body,cls,foot)=>`<div class="hbox ${cls||''}"><div class="hbh"><h3>${t}</h3></div>${body}${foot||''}</div>`;
@@ -805,7 +805,7 @@ function renderA(){
   const nAs=u=>DATA.filter(d=>(d.asig||[]).includes(u)).length;
   $('admin').innerHTML=secs+`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
    <p class="sm">Los comerciales solo ven los médicos que les asignes y sus propias visitas. El administrador lo ve todo.</p>
-   <div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Médicos asignados</th><th>Último acceso</th><th></th></tr></thead><tbody>
+   <div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Médicos asignados</th><th>Último acceso</th><th>Acciones</th></tr></thead><tbody id="ubodyT">
    ${USRS.map(u=>`<tr><td><div class="nm">${esc(u.nombre||u.usuario)}</div><div class="sm">${esc(u.usuario)}${u.email?' · '+esc(u.email):''}</div></td><td>${esc(u.rol)}</td>
      <td>${u.activo?'<span class="estb" data-e="Prescribe">Activo</span>':'<span class="estb" data-e="No interesado">Desactivado</span>'}${u.cambiar?'<div class="sm">Pendiente de cambiar contraseña</div>':''}</td>
      <td>${u.rol==='Administrador'?'<span class="sm">Todos</span>':nAs(u.usuario).toLocaleString('es')}</td><td class="sm">${esc(u.acceso||'—')}</td>
@@ -1076,10 +1076,7 @@ function setupDups(){
     if(e.target.id==='dRef'){DUPERR='';cargarDups(e.target);return}
     if(e.target.id==='dAnal'){progress('Analizando toda la base',null);busy(e.target,async()=>{try{const j=await adminApi({a:'analizar'});$('pov').hidden=true;if(j.ok){DUPULT=new Date().toLocaleString('es',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})+` · ${j.pares} parejas parecidas · ${j.marcados} marcadas`;DUPS=null;toast(`Análisis hecho: ${j.marcados} ${j.marcados===1?'médico marcado':'médicos marcados'} como pendiente de unificar`);cargarDups()}else toast('No se ha podido analizar: '+j.error,true)}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Analizando…');return}
     if(e.target.id==='dScan'){progress('Buscando duplicados en toda la base',null);busy(e.target,async()=>{try{const j=await adminApi({a:'escanear'});if(j.ok){PARES=j.pares;if(j.ultimo){const p=j.ultimo.split('|');DUPULT=new Date(p[0]).toLocaleString('es',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})+` · ${p[1]} parejas · ${p[2]} marcadas`}renderM();progressEnd(`${j.pares.length} ${j.pares.length===1?'posible duplicado':'posibles duplicados'}`)}}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Buscando…');return}
-    const u=e.target.closest('[data-unif]');if(u){const de=+u.dataset.unif,en=+u.dataset.en;if(!await appConfirm(`¿Unificar el código ${de} en el ${en}? Se moverán sus consultas, visitas y citas, y el ${de} desaparecerá.`))return;
-      busy(u,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}
-        if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==de);if(PARES)PARES=PARES.filter(p=>p.a.c!==de&&p.b.c!==de);
-        const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}renderM();toast('Unificado. Los dispositivos se actualizarán en su próxima descarga.')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
+    const u=e.target.closest('[data-unif]');if(u){openUnificar(+u.dataset.unif,+u.dataset.en);return}
     const n=e.target.closest('[data-nodup]');if(n){const c=+n.dataset.nodup;busy(n,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==c);if(PARES&&n.dataset.par)PARES=PARES.filter(p=>p.b.c!==c);const d=BYCODE.get(c);if(d)d.dup='Revisado';renderM();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
 }
 
@@ -1158,7 +1155,7 @@ function prefsClick(e){const t=e.target;
   if(t.id==='pfCancel'){PREF=null;renderK();return}
   if(t.id==='tplReset'){prefsLeer();PREF.plantillas={...TPL_DEF};renderK();toast('Plantillas restauradas (pulsa Guardar)');return}
   if(t.id==='pfSave'){prefsLeer();for(const k of ['salida','vuelta']){const x=PREF[k];if(!x)continue;if(!x.lat||x._cambio){toast(`Pulsa "Buscar dirección" en el punto de ${k==='salida'?'salida':'llegada'} para ubicarlo`,true);return}}
-    const clean=x=>x?{nombre:x.nombre||'',dir:x.dir||'',lat:x.lat,lon:x.lon}:null;const d={salida:clean(PREF.salida),vuelta:clean(PREF.vuelta),plantillas:PREF.plantillas};
+    const clean=x=>x?{nombre:x.nombre||'',dir:x.dir||'',lat:x.lat,lon:x.lon}:null;const d={salida:clean(PREF.salida),vuelta:clean(PREF.vuelta),plantillas:PREF.plantillas,kpis:(USER.prefs||{}).kpis||null};
     busy(t,async()=>{try{const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
       USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;
       applyPrefs();PREF=null;if(P.plan&&!P.plan.quick)P.plan=buildPlan();renderK();toast('Preferencias guardadas')}catch(err){toast('Sin conexión: '+err.message,true)}},'Guardando…')}}
@@ -1409,6 +1406,102 @@ async function mostrarRutaMapa(btn){const pl=P.plan;if(!pl||!pl.stops)return;con
     if(!linea){L.polyline(pts,{color:'#2B6CB0',weight:3,dashArray:'6 6'}).addTo(RMAP);$('rmapInfo').textContent='Orden de las paradas (líneas rectas: el trazado por carretera no está disponible ahora).'}
     setTimeout(()=>RMAP.invalidateSize(),60)},'Cargando el mapa…')}
 
+/* ================= v1.8: indicadores personalizables ================= */
+const KPI_CAT=[
+ {id:'visitas',t:'visitas esta semana',g:c=>({n:c.weekV,ico:'visit'})},
+ {id:'visitasMes',t:'visitas este mes',g:c=>{const m=today().slice(0,7);let n=0;SEG.forEach(s=>(s.visitas||[]).forEach(v=>{if(String(v.f).startsWith(m))n++}));return {n,ico:'visit'}}},
+ {id:'muestras',t:'muestras de DOLNER esta semana',g:c=>({n:c.weekMu,ico:'sample'})},
+ {id:'acciones',t:'acciones para hoy o atrasadas',g:c=>{const n=c.due.filter(s=>s.prox_f<=c.td).length;return {n,ico:'task',cls:n?'k-warn':''}}},
+ {id:'citasHoy',t:'citas en tu agenda hoy',g:c=>{const it=AG.filter(x=>mineAg(x)&&x.f===today()&&x.e!=='Descartada');return {n:`${it.filter(x=>x.e==='Visitada').length}/${it.length}`,ico:'clock',h:'agenda'}}},
+ {id:'urgentes',t:'urgentes sin visitar',g:c=>({n:c.urg.length,ico:'urg',cls:c.urg.length?'k-warn':'k-ok',h:'urg'})},
+ {id:'pendRuta',t:'pendientes de rutas anteriores',g:c=>{const n=pendientesRuta().length;return {n,ico:'clock',cls:n?'k-warn':'k-ok',h:'agenda'}}},
+ {id:'cumpl',t:'cumplimiento de ruta esta semana',g:c=>{const l=lunes(today());const cu=cumplimiento(AG.filter(x=>mineAg(x)&&x.f>=l&&x.f<=today()));return {n:cu.p==null?'—':cu.p+'%',ico:'star',cls:cu.p!=null&&cu.p<60?'k-warn':'k-ok'}}},
+ {id:'interesados',t:'médicos interesados',g:c=>({n:DATA.filter(d=>estadoDe(d)==='Interesado').length,ico:'star',cls:'k-ok'})},
+ {id:'prescriben',t:'médicos que prescriben',g:c=>({n:DATA.filter(d=>estadoDe(d)==='Prescribe').length,ico:'star',cls:'k-ok'})},
+ {id:'sinContactar',t:'sin contactar (tu área)',g:c=>({n:DATA.filter(d=>areaOk(d)&&estadoDe(d)==='Sin contactar').length,ico:'user'})},
+ {id:'asignados',t:'médicos en tu cartera',g:c=>({n:DATA.length,ico:'user'})},
+ {id:'dups',t:'médicos pendientes de unificar · revisar',admin:true,g:c=>{const n=DATA.filter(d=>d.dup==='Pendiente de unificar').length;return {n,ico:'user',cls:n?'k-warn':'k-ok',h:'dups'}}},
+ {id:'cambios',t:'cambios pendientes de enviar',g:c=>({n:c.pend,ico:'sync',cls:c.pend?'k-warn':'k-ok'})},
+ {id:'calidad',t:'fichas completas · ver qué falta',g:c=>{const q=calidad();return {n:q.pct+'%',ico:'data',extra:`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,h:'calidad'}}}];
+const KPI_DEF=['visitas','muestras','acciones','urgentes','pendRuta','dups','cambios','calidad'];
+function kpiCfg(){const p=(USER.prefs||{}).kpis;if(Array.isArray(p)&&p.length)return p;return KPI_CAT.map(k=>({id:k.id,on:KPI_DEF.includes(k.id),t:''})).sort((a,b)=>(KPI_DEF.indexOf(a.id)+1||99)-(KPI_DEF.indexOf(b.id)+1||99))}
+function renderKpis(c){const cfg=kpiCfg();return cfg.filter(x=>x.on).map(x=>{const k=KPI_CAT.find(y=>y.id===x.id);if(!k||(k.admin&&!PERM.admin))return '';const r=k.g(c);
+  const nav=r.h&&((r.h==='dups'&&PERM.admin)||(r.h==='calidad'&&tabOk('S'))||(r.h==='agenda'&&tabOk('G'))||(r.h==='urg'&&tabOk('M')));
+  return kpi(r.n,esc(x.t||k.t),r.ico,r.cls||'',r.extra||'',nav?`data-h="${r.h}" role="button" tabindex="0" style="cursor:pointer"`:'')}).join('')}
+let KDR=null;
+function abrirKpiCfg(){const cfg=kpiCfg();const ids=new Set(cfg.map(x=>x.id));KDR=cfg.concat(KPI_CAT.filter(k=>!ids.has(k.id)).map(k=>({id:k.id,on:false,t:''})));pintarKpiCfg();$('udlg').showModal()}
+function pintarKpiCfg(){const vis=KDR.filter(x=>{const k=KPI_CAT.find(y=>y.id===x.id);return k&&(!k.admin||PERM.admin)});
+  $('ubody').innerHTML=`<div class="cfgh"><h3>Personalizar indicadores</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">Marca los que quieres ver en Inicio, ordénalos y, si quieres, cambia su texto. Se guarda en tu usuario.</p>
+   <div class="kpil">${vis.map(x=>{const k=KPI_CAT.find(y=>y.id===x.id);const i=KDR.indexOf(x);return `<div class="kpir ${x.on?'':'off'}"><label class="kpion"><input type="checkbox" data-kon="${i}" ${x.on?'checked':''}></label><input data-kt="${i}" value="${esc(x.t)}" placeholder="${esc(k.t)}"><span class="catord"><button type="button" class="reg" data-kmv2="${i}" data-dir="-1">↑</button><button type="button" class="reg" data-kmv2="${i}" data-dir="1">↓</button></span></div>`}).join('')}</div>
+   <div class="acts"><button type="button" class="btn sec" id="kpRes">Restaurar</button><button type="button" class="btn" id="kpSave">Guardar</button></div>`;
+  const leer=()=>{$('ubody').querySelectorAll('[data-kt]').forEach(i=>KDR[+i.dataset.kt].t=i.value.trim());$('ubody').querySelectorAll('[data-kon]').forEach(i=>KDR[+i.dataset.kon].on=i.checked)};
+  $('uCancel').onclick=()=>$('udlg').close();
+  $('ubody').onclick=e=>{const mv=e.target.closest('[data-kmv2]');if(mv){leer();const i=+mv.dataset.kmv2,j=i+(+mv.dataset.dir);if(j<0||j>=KDR.length)return;[KDR[i],KDR[j]]=[KDR[j],KDR[i]];pintarKpiCfg()}};
+  $('ubody').onchange=e=>{if(e.target.dataset.kon!=null){leer();pintarKpiCfg()}};
+  $('kpRes').onclick=()=>{KDR=KPI_CAT.map(k=>({id:k.id,on:KPI_DEF.includes(k.id),t:''})).sort((a,b)=>(KPI_DEF.indexOf(a.id)+1||99)-(KPI_DEF.indexOf(b.id)+1||99));pintarKpiCfg()};
+  $('kpSave').onclick=e=>{leer();const kp=KDR.map(x=>({id:x.id,on:x.on,t:x.t}));busy(e.target,async()=>{try{const d={...(USER.prefs||{}),kpis:kp};const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
+    USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;$('udlg').close();render();toast('Indicadores guardados')}catch(err){toast('Sin conexión',true)}},'Guardando…')}}
+
+/* ================= v1.8: tablas con columnas configurables ================= */
+const GRIDS=[['medicos','tbody','Médicos'],['seguimiento','sbody','Seguimiento'],['fichas','fbody','Fichas editadas'],['usuarios','ubodyT','Usuarios']];
+const GW_DEF={'Médico':230,'Centro':190,'Municipio':130,'Dirección':210,'Teléfono':130,'Días':150,'Ubicación':200,'Visita':170,'Usuario':220,'Rol':120,'Estado':150,'Médicos asignados':150,'Último acceso':150,'Cambio':110,'Consultas y horario':320,'Teléfono, contacto y nota':240,'Última visita':130,'Resultado':170,'Horario captado':200,'Contacto':170,'Próxima acción':200};
+const gKey=k=>'dlc_grid_'+(USER.usuario||'')+'_'+k;
+function gCfg(k){try{return JSON.parse(localStorage.getItem(gKey(k))||'null')||{}}catch(e){return {}}}
+function gridize(key){const g=GRIDS.find(x=>x[0]===key);if(!g)return;const tb=$(g[1]);if(!tb)return;const table=tb.closest('table');if(!table)return;
+  const ths=[...table.querySelectorAll('thead th')];if(!ths.length)return;
+  if(!table.dataset.orig){table.dataset.orig=JSON.stringify(ths.map((t,i)=>t.textContent.trim()||('Columna '+(i+1))))}
+  const orig=JSON.parse(table.dataset.orig);const cfg=gCfg(key);
+  const order=(cfg.order||[]).filter(l=>orig.includes(l)).concat(orig.filter(l=>!(cfg.order||[]).includes(l)));
+  const hidden=new Set(cfg.hidden||[]);const W=l=>(cfg.w&&cfg.w[l])||GW_DEF[l]||(l.startsWith('Columna')?80:160);
+  const idx=order.map(l=>orig.indexOf(l));
+  const reorder=tr=>{const cells=[...tr.children];if(cells.length!==orig.length)return false;const cur=tr.dataset.ord?JSON.parse(tr.dataset.ord):orig.map((_,i)=>i);
+    const byOrig=[];cur.forEach((o,pos)=>byOrig[o]=cells[pos]);idx.forEach(o=>{const c=byOrig[o];tr.appendChild(c);c.style.display=hidden.has(orig[o])?'none':''});tr.dataset.ord=JSON.stringify(idx);return true};
+  reorder(table.querySelector('thead tr'));[...tb.children].forEach(tr=>{if(!reorder(tr)){const td=tr.querySelector('td[colspan]');if(td)td.colSpan=Math.max(1,order.length-hidden.size)}});
+  let sum=0;[...table.querySelector('thead tr').children].forEach(th=>{const l=orig[JSON.parse(table.querySelector('thead tr').dataset.ord)[[...th.parentNode.children].indexOf(th)]];const w=W(l);th.style.width=w+'px';th.style.minWidth=w+'px';if(!hidden.has(l))sum+=w});
+  table.style.tableLayout='fixed';table.style.width=`max(100%, ${sum}px)`;
+  const wrap=table.closest('.tablewrap');if(wrap&&!wrap.previousElementSibling?.classList?.contains('gridbar')){wrap.insertAdjacentHTML('beforebegin',`<div class="gridbar"><span class="sm">Desliza a los lados para ver todas las columnas</span><button type="button" class="reg" data-gcfg="${key}">⚙ Columnas</button></div>`)}}
+function applyGrids(){GRIDS.forEach(([k])=>{try{gridize(k)}catch(e){}})}
+function abrirGridCfg(key){const g=GRIDS.find(x=>x[0]===key);const table=$(g[1]).closest('table');const orig=JSON.parse(table.dataset.orig||'[]');const cfg=gCfg(key);
+  let D=(cfg.order||[]).filter(l=>orig.includes(l)).concat(orig.filter(l=>!(cfg.order||[]).includes(l))).map(l=>({l,on:!(cfg.hidden||[]).includes(l),w:(cfg.w&&cfg.w[l])||GW_DEF[l]||160}));
+  const pinta=()=>{$('ubody').innerHTML=`<div class="cfgh"><h3>Columnas · ${esc(g[2])}</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">Elige qué columnas ver, en qué orden y su ancho. Se guarda en este dispositivo.</p>
+    <div class="kpil">${D.map((x,i)=>`<div class="kpir ${x.on?'':'off'}"><label class="kpion"><input type="checkbox" data-gon="${i}" ${x.on?'checked':''}></label><span class="gl">${esc(x.l)}</span>
+     <select data-gw="${i}">${[[90,'Muy estrecha'],[130,'Estrecha'],[170,'Media'],[230,'Ancha'],[320,'Muy ancha']].map(([v,t])=>`<option value="${v}" ${Math.abs(x.w-v)<21?'selected':''}>${t}</option>`).join('')}</select>
+     <span class="catord"><button type="button" class="reg" data-gmv="${i}" data-dir="-1">↑</button><button type="button" class="reg" data-gmv="${i}" data-dir="1">↓</button></span></div>`).join('')}</div>
+    <div class="acts"><button type="button" class="btn sec" id="gRes">Restaurar</button><button type="button" class="btn" id="gSave">Guardar</button></div>`;
+    const leer=()=>{$('ubody').querySelectorAll('[data-gon]').forEach(i=>D[+i.dataset.gon].on=i.checked);$('ubody').querySelectorAll('[data-gw]').forEach(s=>D[+s.dataset.gw].w=+s.value)};
+    $('uCancel').onclick=()=>$('udlg').close();
+    $('ubody').onclick=e=>{const mv=e.target.closest('[data-gmv]');if(mv){leer();const i=+mv.dataset.gmv,j=i+(+mv.dataset.dir);if(j<0||j>=D.length)return;[D[i],D[j]]=[D[j],D[i]];pinta()}};
+    $('ubody').onchange=e=>{if(e.target.dataset.gon!=null){leer();pinta()}};
+    $('gRes').onclick=()=>{localStorage.removeItem(gKey(key));$('udlg').close();render();toast('Columnas restauradas')};
+    $('gSave').onclick=()=>{leer();if(!D.some(x=>x.on)){toast('Deja al menos una columna visible',true);return}localStorage.setItem(gKey(key),JSON.stringify({order:D.map(x=>x.l),hidden:D.filter(x=>!x.on).map(x=>x.l),w:Object.fromEntries(D.map(x=>[x.l,x.w]))}));$('udlg').close();render();toast('Columnas guardadas')}};
+  pinta();$('udlg').showModal()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-gcfg]');if(b)abrirGridCfg(b.dataset.gcfg)});
+
+/* ================= v1.8: unificar eligiendo los datos ================= */
+const UNI_F=[['n','Nombre','NOMBRE COMPLETO'],['e','Especialidad','ESPECIALIDAD'],['a','Área','ÁREA'],['tel','Teléfono','TELÉFONO'],['contacto','Contacto','CONTACTO'],['nota','Nota','NOTA'],['est','Estado comercial','ESTADO COMERCIAL'],['top','Prioridad','PRIORIDAD COMERCIAL'],['vn','Cuándo visitar','CUÁNDO VISITAR (NOTA)']];
+const uniVal=(d,k)=>k==='top'?(d.top?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':'')):k==='est'?(d.est||''):(d[k]||'');
+function openUnificar(de,en){const A=BYCODE.get(de),B=BYCODE.get(en);if(!A||!B){toast('Uno de los dos registros no está en este dispositivo',true);return}
+  let master=en;const sel={};UNI_F.forEach(([k])=>{const va=uniVal(A,k),vb=uniVal(B,k);sel[k]=vb?'en':(va?'de':'en')});
+  const pinta=()=>{const M=master===en?B:A,O=master===en?A:B;
+    const card=(d,cod)=>`<div class="dc ${master===cod?'uni-m':''}"><label class="chkrow" style="margin:0"><input type="radio" name="uniM" value="${cod}" ${master===cod?'checked':''}> <b>Conservar este registro</b></label><div class="nm">${esc(d.n)}</div><div class="sm">Código ${cod} · ${(segOf(cod)&&segOf(cod).visitas||[]).length} visitas · ${d.cons.length} consultas</div><div class="sm">${esc([d.cons[0].ce,d.cons[0].m].filter(Boolean).join(' · '))}</div></div>`;
+    const dif=UNI_F.filter(([k])=>uniVal(A,k)!==uniVal(B,k));
+    $('ubody').innerHTML=`<div class="cfgh"><h3>Unificar registros</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div>
+     <p class="sm">Elige qué registro se conserva y, en cada dato distinto, con qué valor te quedas. Las consultas, visitas, citas y asignaciones de los dos se juntan en el que conserves.</p>
+     <div class="duppar" style="grid-template-columns:1fr 1fr">${card(A,de)}${card(B,en)}</div>
+     ${dif.length?`<div class="unitab"><div class="uh"><span>Dato</span><span>Código ${de}</span><span>Código ${en}</span></div>${dif.map(([k,t])=>{const va=uniVal(A,k),vb=uniVal(B,k);return `<div class="ur"><b>${t}</b>
+       <label class="${sel[k]==='de'?'on':''}"><input type="radio" name="uf_${k}" value="de" ${sel[k]==='de'?'checked':''}> ${va?esc(va):'<i class="sm">(vacío)</i>'}</label>
+       <label class="${sel[k]==='en'?'on':''}"><input type="radio" name="uf_${k}" value="en" ${sel[k]==='en'?'checked':''}> ${vb?esc(vb):'<i class="sm">(vacío)</i>'}</label></div>`}).join('')}</div>`:'<p class="sm">Los datos principales coinciden.</p>'}
+     <div class="acts"><button type="button" class="btn sec" id="uCancel2">Cancelar</button><button type="button" class="btn dang" id="uniGo">Unificar</button></div>`;
+    $('uCancel').onclick=$('uCancel2').onclick=()=>$('udlg').close();
+    $('ubody').onchange=e=>{if(e.target.name==='uniM'){master=+e.target.value;pinta();return}const m=/^uf_(\w+)$/.exec(e.target.name||'');if(m){sel[m[1]]=e.target.value;pinta()}};
+    $('uniGo').onclick=async ev=>{const keep=master,drop=keep===en?de:en;const campos={};UNI_F.forEach(([k,,col])=>{const fromDrop=(sel[k]==='de'&&drop===de)||(sel[k]==='en'&&drop===en);campos[col]=fromDrop?'de':'en'});
+      if(!await appConfirm(`¿Unificar el código ${drop} en el ${keep}? El ${drop} desaparecerá. No se puede deshacer desde la app.`))return;
+      busy(ev.target,async()=>{try{const j=await adminApi({a:'unificar',de:drop,en:keep,campos:JSON.stringify(campos)});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}
+        const K=BYCODE.get(keep),Dp=BYCODE.get(drop);UNI_F.forEach(([k,,col])=>{if(campos[col]==='de'){if(k==='top'){K.top=Dp.top}else if(k==='est'){K.est=Dp.est}else K[k]=Dp[k]}});
+        K.asig=[...new Set((K.asig||[]).concat(Dp.asig||[]))];K.dup='Revisado';const i=DATA.findIndex(x=>x.c===drop);if(i>=0){DATA.splice(i,1);BYCODE.delete(drop)}
+        if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==drop&&p.nuevo.c!==keep);if(PARES)PARES=PARES.filter(p=>![p.a.c,p.b.c].includes(drop));$('udlg').close();render();toast('Unificado en el código '+keep)}catch(err){toast('Sin conexión',true)}},'Unificando…')}};
+  pinta();if(!$('udlg').open)$('udlg').showModal()}
+
 /* ================= Plan del día ================= */
 const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};const BACK={n:'Santpedor',lat:41.7833,lon:1.8414};
 function applyPrefs(){const p=(USER.prefs||{});if(p.salida&&p.salida.lat)Object.assign(HOME,{n:p.salida.nombre||'Salida',lat:+p.salida.lat,lon:+p.salida.lon});Object.assign(BACK,p.vuelta&&p.vuelta.lat?{n:p.vuelta.nombre||'Vuelta',lat:+p.vuelta.lat,lon:+p.vuelta.lon}:HOME)}
@@ -1632,8 +1725,9 @@ function openEdit(code,nd){
   if($('qdlg').open)$('qdlg').close();
   const d=nd||BYCODE.get(code); EDCODE=code; NEWD=nd||null; const f=FICHA.get(code)||{};
   $('eNewRow').hidden=!nd; $('eName').value=''; $('eArea').value=d.a||'Aparato locomotor y dolor';
+  const esCentro=d.t==='Centro';$('edlg').classList.toggle('escentro',esCentro);$('eNameL').textContent=esCentro?'Nombre del centro':'Apellidos, Nombre';$('eName').placeholder=esCentro?'p. ej. CLÍNICA SANT JORDI':'p. ej. GARCIA LOPEZ, ANA';
   $('eUrg').checked=!!d.top; $('eUrgM').value=d.top&&d.top!=='Marcado desde la app'?d.top:''; urgSeg();
-  $('eTitle').textContent=nd?'Nuevo médico':d.n; $('eSub').textContent=nd?'Se añadirá a tu hoja de Google':(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
+  $('eTitle').textContent=nd?(d.t==='Centro'?'Nuevo centro':'Nuevo médico'):d.n; $('eSub').textContent=nd?'Se añadirá a tu hoja de Google':(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
   $('eEsp').value=d.e||''; $('eTel').value=d.tel||''; $('eCont').value=f.contacto||segOf(code)?.contacto||''; $('eNota').value=f.nota||'';
   $('eCons').innerHTML=d.cons.map((c,i)=>consRow(c,i)).join('');
   const tc=tiposCustom().filter(t=>t.activo);$('eClas').innerHTML=tc.length?`<div class="sm" style="margin-top:12px;font-weight:600">Clasificadores</div><div class="grid2">${tc.map(t=>`<div><label>${esc(t.label)}</label><select data-clas="${esc(t.key)}"><option value="">—</option>${catVals(t.key).map(v=>`<option ${((d.clas||{})[t.key]||'')===v?'selected':''}>${esc(v)}</option>`).join('')}</select></div>`).join('')}</div>`:'';
@@ -1649,16 +1743,18 @@ function readEdit(){
 async function saveEdit(){ return saveEdit_() }
 async function saveEdit_(){
   if(!DB||!EDCODE)return; const doc=readEdit();
-  if(NEWD&&!/,/.test(doc.n)){$('eMsg').textContent='Escribe el nombre como APELLIDOS, NOMBRE (con coma).';return}
+  const esCentro=NEWD&&NEWD.t==='Centro';if(esCentro){doc.tipo='Centro';doc.e='';doc.cons=doc.cons.length?doc.cons:[{ce:doc.n,m:'BARCELONA',d:'',cp:'',tel:'',dy:['','','','','']}];if(!doc.cons[0].ce)doc.cons[0].ce=doc.n}
+  if(NEWD&&!esCentro&&!/,/.test(doc.n)){$('eMsg').textContent='Escribe el nombre como APELLIDOS, NOMBRE (con coma).';return}
+  if(esCentro&&doc.n.trim().length<3){$('eMsg').textContent='Escribe el nombre del centro.';return}
   if(NEWD&&!$('eForm').dataset.dupok){window.__dupAlto=null;$('eMsg').innerHTML='<span class="spin"></span> Buscando coincidencias en toda la base…';
-    let cand=[];try{const j=await adminApi({a:'dup',n:doc.n,e:doc.e,m:(doc.cons[0]||{}).m||''});if(j.ok)cand=j.cand}catch(err){cand=posiblesDuplicados(doc.n).map(d=>({pct:null,c:d.c,n:d.n,e:d.e,ce:d.cons[0].ce,m:d.cons[0].m}))}
+    let cand=[];try{const j=await adminApi({a:'dup',n:doc.n,e:doc.e,m:(doc.cons[0]||{}).m||'',tipo:esCentro?'Centro':''});if(j.ok)cand=j.cand}catch(err){cand=posiblesDuplicados(doc.n).map(d=>({pct:null,c:d.c,n:d.n,e:d.e,ce:d.cons[0].ce,m:d.cons[0].m}))}
     const alto=cand.filter(k=>k.pct==null||k.pct>=70);window.__dupAlto=alto;
-    if(alto.length){$('eMsg').innerHTML=`<div class="warn" style="margin:0"><b>Posible médico ya registrado</b><br>`+alto.map(k=>k.oculto?`Coincidencia del <b>${k.pct}%</b> con un médico que no tienes asignado${k.e?' ('+esc(k.e)+')':''}.`:`<b>${k.pct!=null?k.pct+'%':'Parecido'}</b> · <a href="#" data-dupopen="${k.c}">${esc(k.n)}</a> (${esc(k.e||'')}${k.ce?', '+esc(k.ce):''}${k.m?', '+esc(k.m):''})`).join('<br>')+`<br>Si es otra persona, pulsa <b>Guardar ficha</b> otra vez: quedará como <b>pendiente de unificar</b> y el administrador lo revisará.</div>`;$('eForm').dataset.dupok='1';return}
+    if(alto.length){$('eMsg').innerHTML=`<div class="warn" style="margin:0"><b>Posible ${esCentro?'centro':'médico'} ya registrado</b><br>`+alto.map(k=>k.oculto?`Coincidencia del <b>${k.pct}%</b> con un ${esCentro?'centro':'médico'} que no tienes asignado${k.e?' ('+esc(k.e)+')':''}.`:`<b>${k.pct!=null?k.pct+'%':'Parecido'}</b> · <a href="#" data-dupopen="${k.c}">${esc(k.n)}</a> (${esc(k.e||'')}${k.ce?', '+esc(k.ce):''}${k.m?', '+esc(k.m):''})`).join('<br>')+`<br>Si es otra persona, pulsa <b>Guardar ficha</b> otra vez: quedará como <b>pendiente de unificar</b> y el administrador lo revisará.</div>`;$('eForm').dataset.dupok='1';return}
     $('eMsg').textContent='';}
   if(!doc.cons.length){$('eMsg').textContent='Deja al menos una consulta con centro o dirección.';return}
   const urgOn=$('eUrg').checked, motivo=$('eUrgM').value.trim();
   if(NEWD){doc.nuevo=true;doc.a=$('eArea').value;if(urgOn)doc.prioridad='Urgente · '+(motivo||'Marcado desde la app');
-    const nd={...NEWD,n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};
+    const nd={...NEWD,t:esCentro?'Centro':'Persona',n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};
     if($('eForm').dataset.dupok&&window.__dupAlto&&window.__dupAlto.length){nd.dup='Pendiente de unificar';nd.dupDe=window.__dupAlto.filter(k=>!k.oculto&&k.c).map(k=>k.c+' ('+(k.pct||70)+'%)').join(', ')}
     addDoctor(nd);}
   else{const d=BYCODE.get(EDCODE);const want=urgOn?(motivo||'Marcado desde la app'):'';if(want!==(d.top||''))setUrgent(d.c,urgOn,motivo);}
@@ -1669,7 +1765,10 @@ async function saveEdit_(){
 function addDoctor(nd){DATA.push(nd);BYCODE.set(nd.c,nd);ORIG.set(nd.c,JSON.stringify({cons:nd.cons,e:nd.e,tel:nd.tel,q:nd.q,a:nd.a}))}
 function newDoctorObj(code){return {c:code,t:'Persona',n:'',e:'',a:'Aparato locomotor y dolor',car:'',eq:'',ub:'',p:'BARCELONA',m:'BARCELONA',ce:'',g:'',d:'',cp:'',di:'',tel:'',q:'Confirmada con dirección',st:'Dónde confirmado',url:'',
   cons:[{ce:'',g:'',m:'BARCELONA',p:'BARCELONA',d:'',di:null,cp:'',tel:'',dy:['','','','',''],cf:true}],top:'',cor:0,vn:'',sl:[],ed:'',contacto:'',nota:'',nuevo:true}}
-function openNew(){if(!can('nuevo'))return;const c=Number('9'+String(Date.now()).slice(-10));openEdit(c,newDoctorObj(c))}
+function openNew(tipo){if(!can('nuevo'))return;const c=Number('9'+String(Date.now()).slice(-10));const nd=newDoctorObj(c);if(tipo==='Centro'){nd.t='Centro';nd.e='';}openEdit(c,nd)}
+function openCrear(){if(!can('nuevo'))return;$('ubody').innerHTML=`<div class="cfgh"><h3>Crear nuevo</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">¿Qué quieres dar de alta?</p>
+  <div class="crearop"><button type="button" class="copt" data-crear="Persona"><span class="ci">👤</span><b>Médico</b><span class="sm">Profesional con sus consultas, días y horarios</span></button><button type="button" class="copt" data-crear="Centro"><span class="ci">🏥</span><b>Centro</b><span class="sm">Clínica, hospital o centro médico con su dirección</span></button></div>`;
+  $('uCancel').onclick=()=>$('udlg').close();$('ubody').onclick=e=>{const b=e.target.closest('[data-crear]');if(b){$('udlg').close();openNew(b.dataset.crear)}};$('udlg').showModal()}
 function setUrgent(code,on,motivo){const d=BYCODE.get(code);if(!d)return;
   d.top=on?(motivo||'Marcado desde la app'):'';
   const pr=on?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':'');
@@ -1813,7 +1912,7 @@ async function setupDb(){
   setInterval(flush,60000);
   $('syncBtn').onclick=e=>busy(e.target,async()=>{const n=obxGet().length;if(n)progress(`Enviando ${n} ${n===1?'cambio':'cambios'}`,null);await flush();if(n)$('pov').hidden=true;progress('Comprobando datos nuevos',null);await checkUpdates();$('pov').hidden=true;toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
   $('cfgK').onclick=()=>{S.tab='K';render();window.scrollTo({top:0})};
-  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b><div class="sm">Usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</div>`;$('cfgAdminS').hidden=!USER.perm.admin;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML='';
+  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b><div class="sm">Usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</div>`;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML='';
     $('cfgDatos').textContent=(datosTxt()||'Sin datos')+' · '+DATA.length.toLocaleString('es')+' médicos en este dispositivo'+(obxGet().length?' · '+obxGet().length+' cambios pendientes de enviar':'');$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: comprobando…';window.__api({a:'ping'},15000).then(j=>{$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: '+(j&&j.v?j.v:'versión antigua')}).catch(()=>{$('cfgVerTxt').textContent='DLC OS · versión '+(window.__APPVER||'')+' · servidor: sin respuesta'});$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>{$('cfgDlg').close();render()};
   $('cfgMaps').onchange=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);toast('Guardado: '+$('cfgMaps').selectedOptions[0].textContent)};
@@ -1821,7 +1920,6 @@ async function setupDb(){
   $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
   $('cfgOut').onclick=async()=>{if(obxGet().length){await flush()}if(obxGet().length&&!await appConfirm('Hay cambios sin enviar en este dispositivo. Si cierras sesión se enviarán la próxima vez que entres con tu usuario. ¿Cerrar sesión?'))return;window.__logout()};
   $('cfgPass').onclick=()=>{$('cfgDlg').close();openPass()};
-  $('cfgAdmin').onclick=()=>{$('cfgDlg').close();S.tab='A';render();window.scrollTo({top:0})};
   $('cfgReload').onclick=e=>busy(e.target,async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} await (window.__reloadData&&window.__reloadData())},'Descargando…');
   $('newDataBtn').onclick=()=>location.reload();
   checkUpdates();
