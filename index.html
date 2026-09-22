@@ -586,6 +586,21 @@ h3[tabindex="-1"]:focus{outline:none}
 .unitab label.on{border-color:var(--navy);background:var(--sky-soft)}.unitab input{width:auto!important;margin-top:2px}
 .dc.uni-m{border-color:var(--navy)!important;box-shadow:0 0 0 2px rgba(18,58,99,.15)}
 @media (max-width:760px){.crearop{grid-template-columns:1fr}.unitab .uh,.unitab .ur{grid-template-columns:1fr}.kpir{grid-template-columns:auto minmax(0,1fr)}.kpir select,.kpir .catord{grid-column:2}}
+
+/* ---------- v1.8.1 ---------- */
+.gth{position:relative}.gres{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;touch-action:none}
+.gres::after{content:"";position:absolute;top:22%;right:4px;width:2px;height:56%;background:var(--line);border-radius:2px}
+.gth:hover .gres::after{background:var(--navy)}
+body.gresizing{cursor:col-resize;user-select:none}
+.kpi.kclick{cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+.kpi.kclick:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(16,40,70,.12);border-color:var(--navy)}
+.kpi.kclick:active{transform:translateY(0)}
+.kpi.kclick:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.kpi.kclick::after{content:"›";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:20px;font-weight:700}
+.ksub{font-size:11.5px;color:var(--muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chipsrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.pfnow{background:var(--sky-soft);border-radius:10px;padding:10px 12px;margin:0 0 12px;color:var(--navy)}
+@media (max-width:760px){.kpi.kclick::after{right:8px}.gres{width:14px;right:-6px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -653,13 +668,14 @@ h3[tabindex="-1"]:focus{outline:none}
 
     <main class="main">
 
-      <div class="chips" id="chips"></div>
+      <div class="chipsrow"><div class="chips" id="chips"></div><button type="button" class="dl" id="kpiSave" hidden>★ Guardar filtro como indicador</button></div>
 
       <section class="panel" id="viewK" hidden><div id="config" class="fi cfgpage" style="padding:4px 18px 18px"></div></section>
       <section class="panel" id="viewA" hidden><div id="admin" style="padding:0 14px 14px"></div></section>
       <section class="panel" id="viewG" hidden><div id="agenda" style="padding:14px"></div></section>
       <section class="panel" id="viewH" hidden><div id="hoy" style="padding:14px"></div></section>
       <section class="panel" id="viewC" hidden>
+        <div class="opts" style="justify-content:flex-end"><span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="dl duppill" id="dupPillC" hidden></button><button class="dl" id="mapBtnC">Ver mapa</button><button class="dl" id="nearBtnC">Cerca de mí</button><button class="dl" id="newBtnC">+ Crear nuevo</button></span></div>
         <div class="opts">
           <span>Agrupar por</span>
           <label><input type="radio" name="agr" value="grupo" checked> grupo</label>
@@ -769,7 +785,7 @@ h3[tabindex="-1"]:focus{outline:none}
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.8.0';
+window.__APPVER='1.8.1';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -833,7 +849,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.8.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.8.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){

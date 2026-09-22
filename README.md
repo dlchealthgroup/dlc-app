@@ -6,7 +6,7 @@ Funciona sin conexión y se sincroniza con la hoja de Google "DLC Médicos (app)
 Este repositorio solo contiene el código: los datos viven en la hoja de Google y solo se
 descargan con la clave, que se introduce una vez en cada dispositivo.
 
-Versión 1.8.0
+Versión 1.8.1
 
 ## Estructura
 - `index.html`: pantalla, estilos y capa de datos (descarga desde la hoja y almacén local).

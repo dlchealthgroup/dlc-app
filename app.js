@@ -227,12 +227,15 @@ function render(){
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
   if(S.tab==='A')renderA(); else if(S.tab==='K')renderK(); else if(S.tab==='G')renderG(); else if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
   chkBar();rutaBar();try{applyGrids()}catch(e){}
+  {const kb=$('kpiSave');if(kb){const hayF=Object.keys(filtroActual()).length>0;kb.hidden=!(S.tab==='M'&&S.mview!=='dups'&&hayF)}}
   $('foot').textContent=datosTxt();
   $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('noinfo',!$('count').textContent.trim()&&noF);
 }
 function renderC(){
   const f=filtered(),r=ranking(),max=r[0]?r[0].n:1;
   $('count').innerHTML=`<b>${r.length.toLocaleString('es')}</b> ${S.agr==='grupo'?'grupos y centros':'centros'}`;
+  {const nd=DATA.filter(d=>d.dup==='Pendiente de unificar').length;const p=$('dupPillC');if(p){p.hidden=!nd||!PERM.admin;p.textContent=`⚠ ${nd} pendientes de unificar`}
+   if($('newBtnC'))$('newBtnC').style.display=can('nuevo')?'':'none';if($('mapBtnC'))$('mapBtnC').style.display=tabOk('M')?'':'none';if($('nearBtnC'))$('nearBtnC').style.display=tabOk('M')?'':'none'}
   $('rank').innerHTML=r.length?r.slice(0,S.rlimit).map((x,i)=>{const sub=S.agr==='grupo'?([...x.muni].length>1?[...x.muni].length+' municipios':[...x.muni][0]||''):x.muni;
     return `<li><button data-i="${i}" title="Ver sus médicos"><span class="pos">${i+1}</span><span><div class="rname">${esc(x.name)}</div><div class="rsub">${esc(sub)} · ${x.cf} con ubicación confirmada</div><div class="track"><span class="c" style="width:${x.cf/max*100}%"></span><span class="u" style="width:${(x.n-x.cf)/max*100}%"></span></div></span><span class="num">${x.n}${PERM.admin?`<span class="rasg" data-asigce="${esc(S.agr==='grupo'?x.g:x.ce)}" title="Asignar a un comercial">Asignar</span>`:''}</span></button></li>`}).join('')
     :`<li class="empty">Ningún centro cumple estos filtros. Quita alguno para ver resultados.</li>`;
@@ -382,6 +385,11 @@ function init(){
     const rv=e.target.closest('[data-revdup]');if(rv){revisarDup(+rv.dataset.revdup);return}
     const ru=e.target.closest('[data-run]');if(ru){openUnificar(+ru.dataset.run,+ru.dataset.en);return}
     const rn=e.target.closest('[data-rnd]');if(rn){const c=+rn.dataset.rnd;busy(rn,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){const d=BYCODE.get(c);if(d)d.dup='Revisado';$('udlg').close();render();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
+  on('kpiSave','click',e=>guardarFiltroKpi(e.target));
+  on('mapBtnC','click',()=>{S.tab='M';S.mview='lista';S.map=true;render();window.scrollTo({top:0})});
+  on('nearBtnC','click',e=>nearMe(e.target));
+  on('newBtnC','click',()=>openCrear());
+  on('dupPillC','click',()=>{S.tab='M';S.mview='dups';DUPS=null;DUPERR='';render();window.scrollTo({top:0})});
   on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L){progress('Cargando el mapa',30);busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>{render();progressEnd()})}else render()});
   on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b||!tabOk('M'))return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b||!tabOk('M'))return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
@@ -401,7 +409,7 @@ function init(){
   document.addEventListener('click',async e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();if(!can('urgente'))return;const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(await appConfirm('¿Quitar a '+d.n+' de urgentes?',{ok:'Quitar'}))setUrgent(d.c,false)}else{const m=await appPrompt('Motivo (opcional). Puedes escribirlo o elegir uno:','',{titulo:'Marcar '+d.n+' como urgente',ok:'Marcar urgente',opciones:catVals('MOTIVO_URGENCIA')});if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
-  on('hoy','click',e=>{const rc=e.target.closest('[data-rec]');if(rc){const r=(window.__RECS||[])[+rc.dataset.rec];if(r)planificarCodigos(r.t,r.codes,rc);return}const pb=e.target.closest('[data-plan]');if(pb){planificarRuta(pb.dataset.plan,pb);return}const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openCrear();else if(k==='agenda'){S.tab='G';render();window.scrollTo({top:0})}else if(k==='seg'){S.tab='S';render();window.scrollTo({top:0})}else if(k==='urg'){clearFilters();S.top=true;S.seg='sin';S.tab='M';S.mview='lista';render();window.scrollTo({top:0})}else if(k==='kpicfg'){abrirKpiCfg()}else if(k==='dups'){S.mview='dups';DUPS=null;DUPERR='';S.tab='M';render();window.scrollTo({top:0})}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
+  on('hoy','click',e=>{const kf=e.target.closest('[data-kf]');if(kf){aplicarFiltroKpi(kf.dataset.kf);return}const rc=e.target.closest('[data-rec]');if(rc){const r=(window.__RECS||[])[+rc.dataset.rec];if(r)planificarCodigos(r.t,r.codes,rc);return}const pb=e.target.closest('[data-plan]');if(pb){planificarRuta(pb.dataset.plan,pb);return}const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openCrear();else if(k==='agenda'){S.tab='G';render();window.scrollTo({top:0})}else if(k==='seg'){S.tab='S';render();window.scrollTo({top:0})}else if(k==='urg'){clearFilters();S.top=true;S.seg='sin';S.tab='M';S.mview='lista';render();window.scrollTo({top:0})}else if(k==='kpicfg'){abrirKpiCfg()}else if(k==='dups'){S.mview='dups';DUPS=null;DUPERR='';S.tab='M';render();window.scrollTo({top:0})}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
     const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
     const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;busy(p,()=>{P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})},'Calculando la ruta…')}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
@@ -1134,8 +1142,9 @@ function puntoHTML(k,x,titulo,inner){const body=`<div class="grid2"><div><label>
   <div class="pstate">${x&&x.lat&&!x._cambio?'<span class="okg">✓ Ubicado</span><span class="sm">'+esc(x.dir||'')+'</span>':'<span style="color:#B45309;font-weight:600">Sin ubicar: pulsa "Buscar dirección"</span>'}</div>
   <div class="kacts" style="justify-content:flex-start"><button type="button" class="btn sec" data-pgeo="${k}">Buscar dirección</button><button type="button" class="btn sec" data-pgps="${k}">Usar mi ubicación actual</button></div>`;
   return inner?body:`<div class="kcard"><div class="khead"><div><h4>${titulo}</h4><div class="sm">Dónde empiezas el día</div></div></div>${body}</div>`}
-function renderPrefs(){if(!PREF)PREF=prefsDraft();const mismo=!PREF.vuelta;
+function renderPrefs(){if(!PREF)PREF=prefsDraft();const mismo=!PREF.vuelta;const gp=(USER.prefs||{});
   return `<p class="sm">Se guardan en tu usuario y se aplican en todos tus dispositivos: Plan del día, rutas y recorridos de Google Maps.</p>
+   <div class="pfnow"><b>Ahora mismo:</b> sales de <b>${esc(HOME.n)}</b> y terminas en <b>${esc(BACK.n)}</b>${gp.salida&&gp.salida.dir?` <span class="sm">· ${esc(gp.salida.dir)}</span>`:''}</div>
    <div class="kgrid">${puntoHTML('salida',PREF.salida,'Punto de salida')}
    <div class="kcard"><div class="khead"><div><h4>Punto de llegada</h4><div class="sm">Dónde terminas el día</div></div></div>
     ${mismo?`<p class="sm" style="margin:0">Terminas en <b>${esc(PREF.salida.nombre||'el punto de salida')}</b>.</p>`:''}
@@ -1149,7 +1158,7 @@ function prefsLeer(){if($('tplWa'))PREF.plantillas={wa:$('tplWa').value,asunto:$
 function prefsClick(e){const t=e.target;
   const vm=t.closest('[data-vm]');if(vm){prefsLeer();PREF.vuelta=vm.dataset.vm==='1'?null:(PREF.vuelta||{nombre:'',dir:'',lat:null,lon:null});renderK();return}
   const g=t.closest('[data-pgeo]');if(g){prefsLeer();const k=g.dataset.pgeo;const x=PREF[k];if(!x.dir){toast('Escribe la dirección',true);return}
-    busy(g,async()=>{try{const j=await adminApi({a:'geo',q:x.dir});if(!j.ok){toast('No se ha encontrado esa dirección',true);return}Object.assign(x,{lat:j.lat,lon:j.lon,dir:j.dir,_cambio:false});if(!x.nombre)x.nombre=j.dir.split(',')[0];renderK();toast('Dirección encontrada')}catch(err){toast('Sin conexión',true)}},'Buscando…');return}
+    progress('Buscando la dirección',null);busy(g,async()=>{try{const j=await adminApi({a:'geo',q:x.dir});$('pov').hidden=true;if(!j.ok){toast('No se ha encontrado esa dirección: prueba con calle, número y población',true);return}Object.assign(x,{lat:j.lat,lon:j.lon,dir:j.dir,_cambio:false});if(!x.nombre)x.nombre=j.dir.split(',')[0];renderK();toast('Dirección encontrada')}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Buscando…');return}
   const gp=t.closest('[data-pgps]');if(gp){prefsLeer();const k=gp.dataset.pgps;busy(gp,()=>new Promise(res=>{if(!navigator.geolocation){toast('Sin GPS',true);res();return}
     navigator.geolocation.getCurrentPosition(p=>{Object.assign(PREF[k],{lat:+p.coords.latitude.toFixed(6),lon:+p.coords.longitude.toFixed(6),dir:'Mi ubicación ('+p.coords.latitude.toFixed(4)+', '+p.coords.longitude.toFixed(4)+')',_cambio:false});if(!PREF[k].nombre)PREF[k].nombre='Mi ubicación';renderK();toast('Ubicación tomada');res()},()=>{toast('No se ha podido obtener la ubicación',true);res()},{enableHighAccuracy:true,timeout:15000})}),'Localizando…');return}
   if(t.id==='pfCancel'){PREF=null;renderK();return}
@@ -1158,7 +1167,7 @@ function prefsClick(e){const t=e.target;
     const clean=x=>x?{nombre:x.nombre||'',dir:x.dir||'',lat:x.lat,lon:x.lon}:null;const d={salida:clean(PREF.salida),vuelta:clean(PREF.vuelta),plantillas:PREF.plantillas,kpis:(USER.prefs||{}).kpis||null};
     busy(t,async()=>{try{const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
       USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;
-      applyPrefs();PREF=null;if(P.plan&&!P.plan.quick)P.plan=buildPlan();renderK();toast('Preferencias guardadas')}catch(err){toast('Sin conexión: '+err.message,true)}},'Guardando…')}}
+      applyPrefs();PREF=null;if(P.plan&&!P.plan.quick)P.plan=buildPlan();renderK();toast(`Guardado · sales de ${HOME.n} y terminas en ${BACK.n}`)}catch(err){toast('Sin conexión: '+err.message,true)}},'Guardando…')}}
 /* ---- rutas ---- */
 let RED=null,RDRAFT=null,RQ='';
 const rutasTodo=()=>!!(PERM.admin||(PERM.acc&&PERM.acc.rutasTodo));
@@ -1425,21 +1434,24 @@ const KPI_CAT=[
  {id:'calidad',t:'fichas completas · ver qué falta',g:c=>{const q=calidad();return {n:q.pct+'%',ico:'data',extra:`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,h:'calidad'}}}];
 const KPI_DEF=['visitas','muestras','acciones','urgentes','pendRuta','dups','cambios','calidad'];
 function kpiCfg(){const p=(USER.prefs||{}).kpis;if(Array.isArray(p)&&p.length)return p;return KPI_CAT.map(k=>({id:k.id,on:KPI_DEF.includes(k.id),t:''})).sort((a,b)=>(KPI_DEF.indexOf(a.id)+1||99)-(KPI_DEF.indexOf(b.id)+1||99))}
-function renderKpis(c){const cfg=kpiCfg();return cfg.filter(x=>x.on).map(x=>{const k=KPI_CAT.find(y=>y.id===x.id);if(!k||(k.admin&&!PERM.admin))return '';const r=k.g(c);
+function contarFiltro(f){const save={};Object.keys(f).forEach(k=>{save[k]=S[k];S[k]=Array.isArray(f[k])?[...f[k]]:(f[k]&&typeof f[k]==='object'?{...f[k]}:f[k])});let n=0;try{n=filtered().length}catch(e){}Object.keys(save).forEach(k=>S[k]=save[k]);return n}
+function renderKpis(c){const cfg=kpiCfg();return cfg.filter(x=>x.on).map(x=>{
+  if(x.filtro){const n=contarFiltro(x.filtro);return kpi(n,esc(cap1(x.t||'Filtro guardado')),'data',tabOk('M')?'kclick':'',`<div class="ksub">${esc(filtroTexto(x.filtro))}</div>`,tabOk('M')?`data-kf="${esc(x.id)}" role="button" tabindex="0"`:'')}
+  const k=KPI_CAT.find(y=>y.id===x.id);if(!k||(k.admin&&!PERM.admin))return '';const r=k.g(c);
   const nav=r.h&&((r.h==='dups'&&PERM.admin)||(r.h==='calidad'&&tabOk('S'))||(r.h==='agenda'&&tabOk('G'))||(r.h==='urg'&&tabOk('M')));
-  return kpi(r.n,esc(x.t||k.t),r.ico,r.cls||'',r.extra||'',nav?`data-h="${r.h}" role="button" tabindex="0" style="cursor:pointer"`:'')}).join('')}
+  return kpi(r.n,esc(cap1(x.t||k.t)),r.ico,(r.cls||'')+(nav?' kclick':''),r.extra||'',nav?`data-h="${r.h}" role="button" tabindex="0"`:'')}).join('')}
 let KDR=null;
 function abrirKpiCfg(){const cfg=kpiCfg();const ids=new Set(cfg.map(x=>x.id));KDR=cfg.concat(KPI_CAT.filter(k=>!ids.has(k.id)).map(k=>({id:k.id,on:false,t:''})));pintarKpiCfg();$('udlg').showModal()}
-function pintarKpiCfg(){const vis=KDR.filter(x=>{const k=KPI_CAT.find(y=>y.id===x.id);return k&&(!k.admin||PERM.admin)});
+function pintarKpiCfg(){const vis=KDR.filter(x=>{if(x.filtro)return true;const k=KPI_CAT.find(y=>y.id===x.id);return k&&(!k.admin||PERM.admin)});
   $('ubody').innerHTML=`<div class="cfgh"><h3>Personalizar indicadores</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">Marca los que quieres ver en Inicio, ordénalos y, si quieres, cambia su texto. Se guarda en tu usuario.</p>
-   <div class="kpil">${vis.map(x=>{const k=KPI_CAT.find(y=>y.id===x.id);const i=KDR.indexOf(x);return `<div class="kpir ${x.on?'':'off'}"><label class="kpion"><input type="checkbox" data-kon="${i}" ${x.on?'checked':''}></label><input data-kt="${i}" value="${esc(x.t)}" placeholder="${esc(k.t)}"><span class="catord"><button type="button" class="reg" data-kmv2="${i}" data-dir="-1">↑</button><button type="button" class="reg" data-kmv2="${i}" data-dir="1">↓</button></span></div>`}).join('')}</div>
+   <div class="kpil">${vis.map(x=>{const k=KPI_CAT.find(y=>y.id===x.id);const i=KDR.indexOf(x);return `<div class="kpir ${x.on?'':'off'}"><label class="kpion"><input type="checkbox" data-kon="${i}" ${x.on?'checked':''}></label><input data-kt="${i}" value="${esc(x.t)}" placeholder="${esc(k?k.t:'Filtro guardado')}"><span class="catord"><button type="button" class="reg" data-kmv2="${i}" data-dir="-1">↑</button><button type="button" class="reg" data-kmv2="${i}" data-dir="1">↓</button>${x.filtro?`<button type="button" class="xbtn" data-kdel2="${i}" title="Eliminar indicador" aria-label="Eliminar">🗑</button>`:''}</span>${x.filtro?`<div class="ksub" style="grid-column:2/-1">Filtro guardado · ${esc(filtroTexto(x.filtro))}</div>`:''}</div>`}).join('')}</div>
    <div class="acts"><button type="button" class="btn sec" id="kpRes">Restaurar</button><button type="button" class="btn" id="kpSave">Guardar</button></div>`;
   const leer=()=>{$('ubody').querySelectorAll('[data-kt]').forEach(i=>KDR[+i.dataset.kt].t=i.value.trim());$('ubody').querySelectorAll('[data-kon]').forEach(i=>KDR[+i.dataset.kon].on=i.checked)};
   $('uCancel').onclick=()=>$('udlg').close();
-  $('ubody').onclick=e=>{const mv=e.target.closest('[data-kmv2]');if(mv){leer();const i=+mv.dataset.kmv2,j=i+(+mv.dataset.dir);if(j<0||j>=KDR.length)return;[KDR[i],KDR[j]]=[KDR[j],KDR[i]];pintarKpiCfg()}};
+  $('ubody').onclick=e=>{const dl=e.target.closest('[data-kdel2]');if(dl){leer();KDR.splice(+dl.dataset.kdel2,1);pintarKpiCfg();return}const mv=e.target.closest('[data-kmv2]');if(mv){leer();const i=+mv.dataset.kmv2,j=i+(+mv.dataset.dir);if(j<0||j>=KDR.length)return;[KDR[i],KDR[j]]=[KDR[j],KDR[i]];pintarKpiCfg()}};
   $('ubody').onchange=e=>{if(e.target.dataset.kon!=null){leer();pintarKpiCfg()}};
   $('kpRes').onclick=()=>{KDR=KPI_CAT.map(k=>({id:k.id,on:KPI_DEF.includes(k.id),t:''})).sort((a,b)=>(KPI_DEF.indexOf(a.id)+1||99)-(KPI_DEF.indexOf(b.id)+1||99));pintarKpiCfg()};
-  $('kpSave').onclick=e=>{leer();const kp=KDR.map(x=>({id:x.id,on:x.on,t:x.t}));busy(e.target,async()=>{try{const d={...(USER.prefs||{}),kpis:kp};const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
+  $('kpSave').onclick=e=>{leer();const kp=KDR.map(x=>({id:x.id,on:x.on,t:x.t,...(x.filtro?{filtro:x.filtro}:{})}));busy(e.target,async()=>{try{const d={...(USER.prefs||{}),kpis:kp};const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
     USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;$('udlg').close();render();toast('Indicadores guardados')}catch(err){toast('Sin conexión',true)}},'Guardando…')}}
 
 /* ================= v1.8: tablas con columnas configurables ================= */
@@ -1459,16 +1471,27 @@ function gridize(key){const g=GRIDS.find(x=>x[0]===key);if(!g)return;const tb=$(
   reorder(table.querySelector('thead tr'));[...tb.children].forEach(tr=>{if(!reorder(tr)){const td=tr.querySelector('td[colspan]');if(td)td.colSpan=Math.max(1,order.length-hidden.size)}});
   let sum=0;[...table.querySelector('thead tr').children].forEach(th=>{const l=orig[JSON.parse(table.querySelector('thead tr').dataset.ord)[[...th.parentNode.children].indexOf(th)]];const w=W(l);th.style.width=w+'px';th.style.minWidth=w+'px';if(!hidden.has(l))sum+=w});
   table.style.tableLayout='fixed';table.style.width=`max(100%, ${sum}px)`;
-  const wrap=table.closest('.tablewrap');if(wrap&&!wrap.previousElementSibling?.classList?.contains('gridbar')){wrap.insertAdjacentHTML('beforebegin',`<div class="gridbar"><span class="sm">Desliza a los lados para ver todas las columnas</span><button type="button" class="reg" data-gcfg="${key}">⚙ Columnas</button></div>`)}}
+  const thead=table.querySelector('thead tr');const ord=JSON.parse(thead.dataset.ord);
+  [...thead.children].forEach((th,pos)=>{if(th.querySelector('.gres'))return;const l=orig[ord[pos]];th.classList.add('gth');th.insertAdjacentHTML('beforeend',`<span class="gres" data-gres="${key}|${esc(l)}" title="Arrastra para cambiar el ancho"></span>`)});
+  const wrap=table.closest('.tablewrap');
+  if(wrap){let bar=wrap.previousElementSibling;if(!bar||!bar.classList||!bar.classList.contains('gridbar')){wrap.insertAdjacentHTML('beforebegin',`<div class="gridbar"><span class="sm ghint" hidden>Desliza a los lados para ver todas las columnas</span><button type="button" class="reg" data-gcfg="${key}">⚙ Columnas</button></div>`);bar=wrap.previousElementSibling}
+    const hint=bar.querySelector('.ghint');if(hint)hint.hidden=wrap.scrollWidth<=wrap.clientWidth+4;
+    bar.hidden=!!(key==='medicos'&&(S.map||S.mview==='dups'))}}
+/* arrastrar el borde de una columna */
+let GDRAG=null;
+document.addEventListener('pointerdown',e=>{const h=e.target.closest('[data-gres]');if(!h)return;e.preventDefault();const [key,label]=h.dataset.gres.split('|');const th=h.parentElement;
+  GDRAG={key,label,x0:e.clientX,w0:th.getBoundingClientRect().width,th};h.setPointerCapture&&h.setPointerCapture(e.pointerId);document.body.classList.add('gresizing')});
+document.addEventListener('pointermove',e=>{if(!GDRAG)return;const w=Math.max(70,Math.min(640,Math.round(GDRAG.w0+(e.clientX-GDRAG.x0))));GDRAG.w=w;GDRAG.th.style.width=w+'px';GDRAG.th.style.minWidth=w+'px'});
+document.addEventListener('pointerup',()=>{if(!GDRAG)return;const {key,label,w}=GDRAG;GDRAG=null;document.body.classList.remove('gresizing');if(!w)return;
+  const cfg=gCfg(key);cfg.w={...(cfg.w||{}),[label]:w};localStorage.setItem(gKey(key),JSON.stringify(cfg));try{gridize(key)}catch(e2){}});
 function applyGrids(){GRIDS.forEach(([k])=>{try{gridize(k)}catch(e){}})}
 function abrirGridCfg(key){const g=GRIDS.find(x=>x[0]===key);const table=$(g[1]).closest('table');const orig=JSON.parse(table.dataset.orig||'[]');const cfg=gCfg(key);
   let D=(cfg.order||[]).filter(l=>orig.includes(l)).concat(orig.filter(l=>!(cfg.order||[]).includes(l))).map(l=>({l,on:!(cfg.hidden||[]).includes(l),w:(cfg.w&&cfg.w[l])||GW_DEF[l]||160}));
-  const pinta=()=>{$('ubody').innerHTML=`<div class="cfgh"><h3>Columnas · ${esc(g[2])}</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">Elige qué columnas ver, en qué orden y su ancho. Se guarda en este dispositivo.</p>
+  const pinta=()=>{$('ubody').innerHTML=`<div class="cfgh"><h3>Columnas · ${esc(g[2])}</h3><button type="button" class="xbtn" id="uCancel" aria-label="Cerrar">✕</button></div><p class="sm">Elige qué columnas ver y en qué orden. El <b>ancho</b> se ajusta arrastrando el borde derecho de cada cabecera en la tabla. Se guarda en este dispositivo.</p>
     <div class="kpil">${D.map((x,i)=>`<div class="kpir ${x.on?'':'off'}"><label class="kpion"><input type="checkbox" data-gon="${i}" ${x.on?'checked':''}></label><span class="gl">${esc(x.l)}</span>
-     <select data-gw="${i}">${[[90,'Muy estrecha'],[130,'Estrecha'],[170,'Media'],[230,'Ancha'],[320,'Muy ancha']].map(([v,t])=>`<option value="${v}" ${Math.abs(x.w-v)<21?'selected':''}>${t}</option>`).join('')}</select>
      <span class="catord"><button type="button" class="reg" data-gmv="${i}" data-dir="-1">↑</button><button type="button" class="reg" data-gmv="${i}" data-dir="1">↓</button></span></div>`).join('')}</div>
     <div class="acts"><button type="button" class="btn sec" id="gRes">Restaurar</button><button type="button" class="btn" id="gSave">Guardar</button></div>`;
-    const leer=()=>{$('ubody').querySelectorAll('[data-gon]').forEach(i=>D[+i.dataset.gon].on=i.checked);$('ubody').querySelectorAll('[data-gw]').forEach(s=>D[+s.dataset.gw].w=+s.value)};
+    const leer=()=>{$('ubody').querySelectorAll('[data-gon]').forEach(i=>D[+i.dataset.gon].on=i.checked);};
     $('uCancel').onclick=()=>$('udlg').close();
     $('ubody').onclick=e=>{const mv=e.target.closest('[data-gmv]');if(mv){leer();const i=+mv.dataset.gmv,j=i+(+mv.dataset.dir);if(j<0||j>=D.length)return;[D[i],D[j]]=[D[j],D[i]];pinta()}};
     $('ubody').onchange=e=>{if(e.target.dataset.gon!=null){leer();pinta()}};
@@ -1501,6 +1524,21 @@ function openUnificar(de,en){const A=BYCODE.get(de),B=BYCODE.get(en);if(!A||!B){
         K.asig=[...new Set((K.asig||[]).concat(Dp.asig||[]))];K.dup='Revisado';const i=DATA.findIndex(x=>x.c===drop);if(i>=0){DATA.splice(i,1);BYCODE.delete(drop)}
         if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==drop&&p.nuevo.c!==keep);if(PARES)PARES=PARES.filter(p=>![p.a.c,p.b.c].includes(drop));$('udlg').close();render();toast('Unificado en el código '+keep)}catch(err){toast('Sin conexión',true)}},'Unificando…')}};
   pinta();if(!$('udlg').open)$('udlg').showModal()}
+
+/* ================= v1.8.1: guardar un filtro como indicador ================= */
+const FKEYS=['prov','muni','grupo','centro','area','esp','dias','cal','tipo','texto','seg','top','est','issue','asig','dupf','clas'];
+const filtroActual=()=>{const f={};FKEYS.forEach(k=>{const v=S[k];if(Array.isArray(v)?v.length:(v&&typeof v==='object'?Object.values(v).some(Boolean):v))f[k]=Array.isArray(v)?[...v]:(v&&typeof v==='object'?{...v}:v)});return f};
+function filtroTexto(f){const p=[];if(f.top)p.push('urgentes');if(f.est)p.push(f.est);if(f.area)p.push(f.area);if(f.esp)p.push(f.esp);if(f.muni)p.push(f.muni);else if(f.prov)p.push(f.prov);
+  if(f.grupo)p.push(f.grupo);if(f.centro)p.push(f.centro);if(f.seg)p.push({sin:'sin visitar',vis:'visitados',prox:'con próxima acción'}[f.seg]||f.seg);
+  if(f.dias&&f.dias.length)p.push('pasan consulta '+f.dias.join(', '));if(f.texto)p.push('“'+f.texto+'”');if(f.issue)p.push('revisar datos');if(f.asig)p.push('asignado a '+f.asig);
+  if(f.clas)Object.entries(f.clas).forEach(([k,v])=>{if(v)p.push(k+': '+v)});return p.join(' · ')||'todos los médicos'}
+async function guardarFiltroKpi(btn){const f=filtroActual();if(!Object.keys(f).length){toast('Aplica algún filtro antes de guardarlo',true);return}
+  const nom=await appPrompt('Nombre del indicador',filtroTexto(f).slice(0,40),{titulo:'Guardar filtro como indicador',ok:'Guardar'});if(nom===null)return;
+  const kp=kpiCfg().concat([{id:'f:'+uid(),on:true,t:(nom||'').trim()||filtroTexto(f).slice(0,40),filtro:f}]);
+  await busy(btn,async()=>{try{const d={...(USER.prefs||{}),kpis:kp};const j=await adminApi({a:'prefs',d:JSON.stringify(d)});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
+    USER.prefs=j.prefs;const sv=JSON.parse(localStorage.getItem('dlc_ses')||'{}');if(sv.user){sv.user.prefs=j.prefs;localStorage.setItem('dlc_ses',JSON.stringify(sv))}if(window.__RAWJ&&window.__RAWJ.user)window.__RAWJ.user.prefs=j.prefs;
+    toast('Guardado como indicador en Inicio')}catch(e){toast('Sin conexión',true)}},'Guardando…')}
+function aplicarFiltroKpi(id){const x=kpiCfg().find(k=>k.id===id);if(!x||!x.filtro)return;clearFilters();Object.entries(x.filtro).forEach(([k,v])=>{S[k]=Array.isArray(v)?[...v]:(v&&typeof v==='object'?{...v}:v)});S.tab='M';S.mview='lista';S.limit=100;render();window.scrollTo({top:0})}
 
 /* ================= Plan del día ================= */
 const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};const BACK={n:'Santpedor',lat:41.7833,lon:1.8414};
