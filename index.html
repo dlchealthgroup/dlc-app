@@ -528,6 +528,44 @@ h3[tabindex="-1"]:focus{outline:none}
 .dpt[aria-pressed=true]{background:var(--navy);border-color:var(--navy);color:#fff}
 .dpc select{width:auto!important;min-height:0!important;padding:6px 8px!important;font-size:13px}
 @media (max-width:760px){.resg .resb{grid-template-columns:1fr!important}.dpg{grid-template-columns:70px 1fr 1fr}.dpt{min-width:0}}
+
+/* ---------- v1.7.1 ---------- */
+.mdlg{border:0;border-radius:16px;padding:0;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 50px rgba(10,20,30,.28)}
+.mdlg::backdrop{background:rgba(15,30,50,.35)}
+.mbox{padding:20px 20px 16px}.mbox h3{margin:0 0 6px;color:var(--navy);font-size:17px}.mmsg{margin:0 0 10px;color:var(--ink);line-height:1.45}
+.btn.dang{background:#9B2C2C;border-color:#9B2C2C;color:#fff}
+.toast.info{font-weight:500;font-size:12.5px;padding:7px 14px;background:rgba(18,58,99,.94);letter-spacing:.01em;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+.topbar{display:grid!important;grid-template-columns:auto auto minmax(0,1fr);align-items:center;column-gap:10px}
+.topbar .count{justify-self:end;white-space:nowrap}
+.dpg{grid-template-columns:90px minmax(0,1fr) minmax(0,1fr)!important;align-items:start!important}
+.dpg>b{padding-top:9px}
+.dpc{display:flex;flex-direction:column;gap:6px;align-items:stretch!important}
+.dpc .dpt{width:100%;min-width:0!important;text-align:left}
+.dpr{display:flex;gap:6px;align-items:center}.dpr .dpt{flex:1}
+.dpr input[type=time]{width:auto!important;flex:1;min-width:0;min-height:0!important;padding:6px 6px!important;font-size:13px}
+.dpx{border:1px solid var(--line);background:var(--panel);border-radius:8px;width:34px;height:34px;flex:0 0 34px;cursor:pointer;color:#9B2C2C;font-weight:700}
+.dpc select{width:100%!important}
+.hgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start;margin-top:4px}
+.hcolL,.hcolR{display:flex;flex-direction:column;gap:14px;min-width:0}
+.hbox{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:12px 14px}
+.hbh h3{margin:0 0 8px;font-size:15px;color:var(--navy);display:flex;gap:8px;align-items:center}.hn{font-size:12px;background:var(--sky-soft);color:var(--navy);border-radius:999px;padding:1px 8px}
+.crow{display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--line);padding:7px 0}
+.crow:first-of-type{border-top:0}
+.cmain{border:0;background:none;text-align:left;cursor:pointer;min-width:0;padding:0;display:flex;flex-direction:column}
+.cmain b{font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cmain .sm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cacts{display:flex;gap:6px;flex:0 0 auto}.cacts .reg{padding:5px 9px;font-size:12.5px}
+.hmore{border:0;background:none;color:var(--navy);font-weight:700;cursor:pointer;padding:8px 0 0;text-decoration:underline}
+.hempty{margin:4px 0}
+.rminis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.rmini{display:flex;flex-direction:column;gap:5px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:10px;cursor:pointer}
+.rmini:hover{border-color:var(--navy)}.rmini.topr{border-left:4px solid #D97706}.rmini b{font-size:13.5px;color:var(--navy)}
+.rmini .prog{display:block;height:5px}.rmf{display:flex;justify-content:space-between;align-items:center;font-size:12.5px}
+.hrec .recs{grid-template-columns:1fr 1fr}
+.asgbox{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)}.asgadd{margin-top:8px}.asgadd select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--panel)}
+.rasg{display:block;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--navy);border:1px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--panel)}
+.rmapbox{margin:10px 0}#rmap{height:min(60vh,520px);border:1px solid var(--line);border-radius:12px}
+.rpin span{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;color:#fff;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+@media (max-width:760px){.hgrid{grid-template-columns:1fr}.hrec .recs{grid-template-columns:1fr}.topbar{grid-template-columns:auto minmax(0,1fr)}.dpg{grid-template-columns:62px minmax(0,1fr) minmax(0,1fr)!important}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -670,10 +708,10 @@ h3[tabindex="-1"]:focus{outline:none}
         <label>Resultado de la visita <span class="sm">· puedes marcar varios de "Visita realizada"</span></label><div id="vResB"></div><input type="hidden" id="vRes">
         <label for="vMu">Muestras de DOLNER entregadas</label><input id="vMu" type="number" min="0" max="99" inputmode="numeric" placeholder="0">
         <label for="vCentro">Centro de la visita</label><select id="vCentro"></select>
-        <label>Días y horario de consulta (p. ej. Mañana 9:00-13:00)</label>
+        <label>Días y horario de consulta</label>
         <div class="grid5" id="vDias"></div>
         <label for="vContacto">Contacto (secretaría, teléfono, email)</label><input id="vContacto">
-        <label for="vNota">Nota (en el iPhone puedes dictarla con el micrófono del teclado)</label><textarea id="vNota" rows="3"></textarea>
+        <label for="vNota">Nota</label><textarea id="vNota" rows="3"></textarea>
         <div class="grid2"><div><label for="vProx">Próxima acción</label><input id="vProx" placeholder="p. ej. volver con muestras"></div>
         <div><label for="vProxF">Fecha</label><input type="date" id="vProxF"></div></div>
         <label class="urgchk" style="margin-top:10px"><input type="checkbox" id="vCal"> Añadir la próxima acción a mi calendario</label>
@@ -695,6 +733,7 @@ h3[tabindex="-1"]:focus{outline:none}
 <label for="shText">Mensaje <span class="sm">(puedes editarlo antes de enviar; la plantilla se cambia en Configuración → Mis preferencias)</span></label>
 <textarea id="shText" rows="14" style="width:100%;font:13.5px/1.45 ui-monospace,Menlo,Consolas,monospace"></textarea>
 <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="shCopy">Copiar</button><button type="button" class="btn" id="shSend">Abrir WhatsApp</button></div></div></dialog>
+<dialog id="mdlg" class="mdlg"></dialog>
 <dialog id="udlg"><div class="fi" style="padding:18px" id="ubody"></div></dialog>
 <dialog id="qdlg"><div class="fi" style="padding:18px"><div id="qbody"></div><div class="acts"><button type="button" class="btn sec" id="qClose">Cerrar</button></div></div></dialog>
 <dialog id="cfgDlg"><div class="fi cfg" style="padding:18px">
@@ -711,7 +750,7 @@ h3[tabindex="-1"]:focus{outline:none}
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.7.0';
+window.__APPVER='1.7.1';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -775,7 +814,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.7.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.7.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){
@@ -805,7 +844,7 @@ window.__refreshData=async()=>{
   }
   let j;try{j=await fetchAll(c)}catch(e){if(e instanceof SesionError){window.__sesionCaducada&&window.__sesionCaducada()}throw e}
   await idb.set('raw',j);return true};
-window.__reloadData=async()=>{const el=document.getElementById('cfgMsg');try{if(el)el.innerHTML=progHTML(0,0);await idb.set('raw',await fetchAll(cfg(),(a,b)=>{if(el)el.innerHTML=progHTML(a,b)}));location.reload()}catch(e){if(e instanceof SesionError){window.__logout&&window.__logout(true);return}alert('No se han podido descargar los datos: '+e.message)}};
+window.__reloadData=async()=>{const el=document.getElementById('cfgMsg');try{if(el)el.innerHTML=progHTML(0,0);await idb.set('raw',await fetchAll(cfg(),(a,b)=>{if(el)el.innerHTML=progHTML(a,b)}));location.reload()}catch(e){if(e instanceof SesionError){window.__logout&&window.__logout(true);return}document.getElementById('cfgMsg')&&(document.getElementById('cfgMsg').textContent='No se han podido descargar los datos: '+e.message)}};
 window.__logout=async(keep)=>{try{const c=cfg();if(c.t&&navigator.onLine&&!keep)await api({s:c.t,a:'logout'},15000)}catch(e){}try{await idb.set('raw',null)}catch(e){}localStorage.removeItem('dlc_ses');location.replace(location.pathname)};
 const card=()=>document.getElementById('bootCard');
 const logoH='<img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px">';
