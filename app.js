@@ -371,7 +371,7 @@ function init(){
   document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();if(!can('urgente'))return;const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(confirm('¿Quitar a '+d.n+' de urgentes?'))setUrgent(d.c,false)}else{const m=prompt('Motivo para marcar como urgente (opcional):','');if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
-  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
+  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='dups'){ASEC='duplicados';DUPS=null;S.tab='A';render()}else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
     const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
     const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;busy(p,()=>{P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})},'Calculando la ruta…')}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
@@ -387,7 +387,7 @@ function init(){
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
   on('vCentro','change',()=>{const d=BYCODE.get(DLGCODE),c=d.cons.find(x=>x.ce===$('vCentro').value);if(c)$('vDias').querySelectorAll('input').forEach((i,ix)=>{if(!i.value)i.value=c.dy[ix]||''})});
-  setupEdit();setupShare();setupV133();setupAdmin();setupAgenda();setupCat();render();setupDownload();setupDb();
+  setupEdit();setupShare();setupV133();setupAdmin();setupAgenda();setupCat();setupDups();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
 function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:'',asig:''})}
@@ -500,7 +500,7 @@ function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
   return `<div class="acts2">${can('urgente')?`<button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>`:(d.top?'<span class="act urg on" style="cursor:default">★ Urgente</span>':'')}${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}${can('editar')?`<button type="button" class="act" data-edit="${d.c}">Editar ficha</button>`:''}${can('registrar')?`<button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>`:''}${extra||''}</div>`}
 function cardHTML(d,c){
   const asg=S.asignando&&S.tab==='M'?`<button type="button" class="act ${(d.asig||[]).includes(S.asignando)?'pri2':''}" data-as1="${d.c}" style="margin-top:8px">${(d.asig||[]).includes(S.asignando)?'✓ Asignado a '+esc(S.asignando):'Asignar a '+esc(S.asignando)}</button>`:'';const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
-  return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div>
+  return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}${d.dup==='Pendiente de unificar'?' <span class="dupb">Pendiente de unificar</span>':''}</div>
   <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}${d._km!=null?` · <span class="dist">a ${d._km<1?'menos de 1':d._km.toFixed(1).replace('.',',')} km${d._kx?'':' (aprox.)'}</span>`:''}</div>
   <div style="margin-top:6px">${esc(c.ce||'Sin centro')}${c.g&&c.g!==c.ce?` <span class="sm">· ${esc(c.g)}</span>`:''}</div>
   <div class="sm">${esc([c.d,c.m].filter(Boolean).join(' · '))}${d.cons.length>1?` · ${d.cons.length} consultas`:''}</div>
@@ -521,7 +521,7 @@ function renderH(){
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
-  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pendientesRuta().length,'pendientes de rutas anteriores','clock',pendientesRuta().length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
+  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pendientesRuta().length,'pendientes de rutas anteriores','clock',pendientesRuta().length?'k-warn':'k-ok')}${PERM.admin&&DATA.some(d=>d.dup==='Pendiente de unificar')?kpi(DATA.filter(d=>d.dup==='Pendiente de unificar').length,'médicos pendientes de unificar · revisar','user','k-warn','','data-h="dups" role="button" style="cursor:pointer"'):''}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
   h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
      <div class="acts2">${tabOk('R')?`<button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button>`:''}${tabOk('P')?`<button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button>`:''}</div></div></div>`;
   {const hoyAg=AG.filter(x=>mineAg(x)&&x.f===today()&&x.e!=='Descartada').sort((a,b)=>(a.h||'99').localeCompare(b.h||'99'));const pr=pendientesRuta();
@@ -730,8 +730,9 @@ const ROLES_UI={'Administrador':{H:3,G:3,C:3,M:3,P:3,R:3,S:3},'Comercial':{H:2,G
 async function adminApi(params){const c=window.__cfg();const j=await window.__api({s:c.t,...params},40000);if(!j.ok&&j.error==='sesion'){sesionCaducada();throw new Error('sesión')}return j}
 function renderA(){
   $('count').innerHTML='';
-  const secs=`<div class="seg" style="margin:0 0 12px">${[['usuarios','Usuarios'],['catalogos','Catálogos']].map(([k,t])=>`<button type="button" data-asec="${k}" aria-pressed="${ASEC===k}">${t}</button>`).join('')}</div>`;
+  const secs=`<div class="seg" style="margin:0 0 12px">${[['usuarios','Usuarios'],['catalogos','Catálogos'],['duplicados','Duplicados'+(DUPS?` (${DUPS.length})`:'')]].map(([k,t])=>`<button type="button" data-asec="${k}" aria-pressed="${ASEC===k}">${t}</button>`).join('')}</div>`;
   if(ASEC==='catalogos'){$('admin').innerHTML=secs+renderCat();return}
+  if(ASEC==='duplicados'){$('admin').innerHTML=secs+renderDups();if(DUPS==null)cargarDups();return}
   const nAs=u=>DATA.filter(d=>(d.asig||[]).includes(u)).length;
   $('admin').innerHTML=secs+`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
    <p class="sm">Los comerciales solo ven los médicos que les asignes y sus propias visitas. El administrador lo ve todo.</p>
@@ -849,13 +850,14 @@ function agItem(x,conDia){const st=estAg(x),own=mineAg(x)||PERM.admin,d=BYCODE.g
 const addD=(f,n)=>{const d=new Date(f+'T12:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const lunes=f=>{const d=new Date(f+'T12:00');return addD(f,-((d.getDay()+6)%7))};
 const DN=['lun','mar','mié','jue','vie','sáb','dom'];
+const cap1=t=>t?t.charAt(0).toUpperCase()+t.slice(1):t;
 function cumplimiento(list){const past=list.filter(x=>(x.f<today()||(x.f===today()&&x.e==='Visitada'))&&x.e!=='Descartada'&&x.e!=='Reprogramada');const v=past.filter(x=>x.e==='Visitada').length;return {v,t:past.length,p:past.length?Math.round(v/past.length*100):null}}
 function renderG(){
   $('count').innerHTML='';const vis=agVisible();
   let rango,titulo;
-  if(G.vista==='dia'){rango=[G.fecha,G.fecha];titulo=new Date(G.fecha+'T12:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})}
+  if(G.vista==='dia'){rango=[G.fecha,G.fecha];titulo=cap1(new Date(G.fecha+'T12:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'}))}
   else if(G.vista==='semana'){const l=lunes(G.fecha);rango=[l,addD(l,6)];titulo='Semana del '+fmtDate(l)}
-  else{const m=G.fecha.slice(0,7);rango=[m+'-01',m+'-31'];titulo=new Date(G.fecha+'T12:00').toLocaleDateString('es',{month:'long',year:'numeric'})}
+  else{const m=G.fecha.slice(0,7);rango=[m+'-01',m+'-31'];titulo=cap1(new Date(G.fecha+'T12:00').toLocaleDateString('es',{month:'long',year:'numeric'}))}
   const enR=vis.filter(x=>x.f>=rango[0]&&x.f<=rango[1]&&x.e!=='Descartada');const cu=cumplimiento(enR);
   const pend=vis.filter(x=>estAg(x)==='Pendiente de ruta');
   const users=PERM.admin?[...new Set(AG.map(x=>x.u))].filter(u=>u&&u!==ME):[];
@@ -912,6 +914,32 @@ function setupCat(){
     const rn=e.target.closest('[data-cren]');if(rn){const x=CAT.find(c=>c.tipo===CATSEL&&c.valor===rn.dataset.cren);const nv=prompt('Nuevo nombre (los datos que ya usan el nombre antiguo no cambian):',x.valor);if(nv&&nv.trim()&&nv.trim()!==x.valor)catSave({valor:nv.trim(),original:x.valor,orden:x.orden,activo:x.activo,extra:x.extra},rn,'Renombrado');return}
     const mv=e.target.closest('[data-cmv]');if(mv){const items=CAT.filter(x=>x.tipo===CATSEL).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));const i=+mv.dataset.cmv,j=i+(+mv.dataset.dir);const a=items[i],b=items[j];if(!a||!b)return;
       busy(mv,async()=>{try{await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:a.valor,original:a.valor,orden:j+1,activo:a.activo,extra:a.extra})});const r=await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:b.valor,original:b.valor,orden:i+1,activo:b.activo,extra:b.extra})});CAT=r.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;renderA()}catch(err){toast('Sin conexión',true)}},'…')}});
+}
+
+/* ================= v1.5.1: duplicados (administración) ================= */
+let DUPS=null,PARES=null;
+const dcard=x=>`<div class="dc"><div class="nm">${esc(x.n||'')}</div><div class="sm">Código ${x.c}${x.e?' · '+esc(x.e):''}</div><div class="sm">${esc([x.ce,x.m].filter(Boolean).join(' · '))}</div>${x.asig?`<div class="sm">Asignado a: ${esc(x.asig)}</div>`:''}</div>`;
+function renderDups(){
+  let h=`<div class="dayhead"><h3>Pendientes de unificar</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="dRef">Actualizar</button><button type="button" class="btn" id="dScan">Buscar duplicados en toda la base</button></div></div>
+   <p class="sm">Médicos dados de alta que se parecen mucho a otro ya registrado. <b>Unificar</b> pasa al existente sus consultas, visitas, citas y asignaciones, y retira el duplicado. Esta acción no se puede deshacer desde la app.</p>`;
+  if(DUPS==null)h+='<p class="sm"><span class="spin"></span> Cargando…</p>';
+  else if(!DUPS.length)h+='<p class="sm">No hay médicos pendientes de unificar.</p>';
+  else h+=DUPS.map(p=>p.cand.map(k=>`<div class="duppar"><div><div class="sm"><b>Nuevo</b></div>${dcard(p.nuevo)}</div><div class="pct">${k.pct}%</div><div><div class="sm"><b>Ya existía</b></div>${dcard(k)}</div>
+     <div class="da"><button type="button" class="btn sec" data-nodup="${p.nuevo.c}">No es duplicado</button><button type="button" class="btn" data-unif="${p.nuevo.c}" data-en="${k.c}">Unificar en el existente</button></div></div>`).join('')).join('');
+  if(PARES){h+=`<h3 style="margin-top:22px">Posibles duplicados en la base (${PARES.length})</h3><p class="sm">Parejas con un 80% de coincidencia o más. Elige cuál se queda.</p>`+
+    (PARES.length?PARES.map(p=>`<div class="duppar"><div>${dcard(p.a)}</div><div class="pct">${p.pct}%</div><div>${dcard(p.b)}</div>
+     <div class="da"><button type="button" class="btn sec" data-nodup="${p.b.c}" data-par="1">No son el mismo</button><button type="button" class="btn sec" data-unif="${p.a.c}" data-en="${p.b.c}">Quedarse con el de la derecha</button><button type="button" class="btn" data-unif="${p.b.c}" data-en="${p.a.c}">Quedarse con el de la izquierda</button></div></div>`).join(''):'<p class="sm">No se han encontrado duplicados.</p>')}
+  return h}
+async function cargarDups(btn){return busy(btn,async()=>{try{const j=await adminApi({a:'dups'});if(j.ok){DUPS=j.pend.filter(p=>p.cand.length);renderA()}}catch(e){toast('Sin conexión',true);DUPS=[]}},'Actualizando…')}
+function setupDups(){
+  $('admin').addEventListener('click',e=>{
+    if(e.target.id==='dRef'){cargarDups(e.target);return}
+    if(e.target.id==='dScan'){progress('Buscando duplicados en toda la base',null);busy(e.target,async()=>{try{const j=await adminApi({a:'escanear'});if(j.ok){PARES=j.pares;renderA();progressEnd(`${j.pares.length} ${j.pares.length===1?'posible duplicado':'posibles duplicados'}`)}}catch(err){$('pov').hidden=true;toast('Sin conexión',true)}},'Buscando…');return}
+    const u=e.target.closest('[data-unif]');if(u){const de=+u.dataset.unif,en=+u.dataset.en;if(!confirm(`¿Unificar el código ${de} en el ${en}? Se moverán sus consultas, visitas y citas, y el ${de} desaparecerá.`))return;
+      busy(u,async()=>{try{const j=await adminApi({a:'unificar',de,en});if(!j.ok){toast('No se ha podido unificar: '+j.error,true);return}
+        if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==de);if(PARES)PARES=PARES.filter(p=>p.a.c!==de&&p.b.c!==de);
+        const i=DATA.findIndex(x=>x.c===de);if(i>=0){DATA.splice(i,1);BYCODE.delete(de)}renderA();toast('Unificado. Los dispositivos se actualizarán en su próxima descarga.')}catch(err){toast('Sin conexión',true)}},'Unificando…');return}
+    const n=e.target.closest('[data-nodup]');if(n){const c=+n.dataset.nodup;busy(n,async()=>{try{const j=await adminApi({a:'nodup',c});if(j.ok){if(DUPS)DUPS=DUPS.filter(p=>p.nuevo.c!==c);if(PARES&&n.dataset.par)PARES=PARES.filter(p=>p.b.c!==c);const d=BYCODE.get(c);if(d)d.dup='Revisado';renderA();toast('Marcado como no duplicado')}}catch(err){toast('Sin conexión',true)}},'Guardando…')}});
 }
 
 /* ================= Plan del día ================= */
@@ -1056,7 +1084,7 @@ function renderP(){
    <div><label for="pCo">Pausa para comer</label><select id="pCo"><option value="0" ${P.comer?'':'selected'}>No</option><option value="1" ${P.comer?'selected':''}>Sí</option></select></div>
    <div><label for="pCi">Comer a partir de</label><input type="time" id="pCi" value="${P.cIni}"></div>
    <div><label for="pCd">Minutos para comer</label><input type="number" id="pCd" min="15" max="120" value="${P.cDur}"></div>
-   <div class="wide"><label class="urgchk" style="font-weight:600;color:var(--ink)"><input type="checkbox" id="pPend" ${P.pend!==false?'checked':''}> Incluir con prioridad los pendientes de rutas anteriores (${pendientesRuta().length})</label></div>
+   <div class="wide"><label class="chkrow" for="pPend"><input type="checkbox" id="pPend" ${P.pend!==false?'checked':''}> Incluir con prioridad los pendientes de rutas anteriores (${pendientesRuta().length})</label></div>
    <div class="wide"><label for="pAr">Médicos a incluir</label><select id="pAr"><option value="loc" ${S.areaSel==='loc'?'selected':''}>Aparato locomotor y dolor</option><option value="all" ${S.areaSel==='all'?'selected':''}>Todas las áreas</option><option value="ap" ${S.areaSel==='ap'?'selected':''}>Atención primaria</option><option value="otras" ${S.areaSel==='otras'?'selected':''}>Otras especialidades</option></select><div class="sm">Los urgentes y los contactos de Corachan entran siempre.</div></div>
    <div class="wide"><label for="pFo">Qué visitar</label><select id="pFo">${opts.map(([v,l])=>`<option value="${v}" ${P.foco===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
    <div class="wide"><button class="btn" id="pGo">Generar ruta del día</button></div></div>`;
@@ -1145,10 +1173,15 @@ function readEdit(){
     return {ce:g('ce'),m:g('m')||'BARCELONA',d:g('d'),cp:g('cp'),tel:g('tel'),dy:[...fs.querySelectorAll('[data-dy]')].map(i=>i.value.trim())}}).filter(c=>c.ce||c.d);
   return {c:EDCODE,n:NEWD?upperNoAcc($('eName').value).replace(/\s*,\s*/,', '):BYCODE.get(EDCODE).n,e:$('eEsp').value.trim(),tel:$('eTel').value.trim(),contacto:$('eCont').value.trim(),nota:$('eNota').value.trim(),cons,upd:today()};
 }
-async function saveEdit(){
+async function saveEdit(){ return saveEdit_() }
+async function saveEdit_(){
   if(!DB||!EDCODE)return; const doc=readEdit();
   if(NEWD&&!/,/.test(doc.n)){$('eMsg').textContent='Escribe el nombre como APELLIDOS, NOMBRE (con coma).';return}
-  if(NEWD&&!$('eForm').dataset.dupok){const dup=posiblesDuplicados(doc.n);if(dup.length){$('eMsg').innerHTML='Posible duplicado: '+dup.map(d=>`<a href="#" data-dupopen="${d.c}">${esc(d.n)}</a> (${esc(d.e||'')}, ${esc(d.cons[0].ce||d.cons[0].m||'')})`).join(' · ')+'. Si es otra persona, pulsa otra vez Guardar.';$('eForm').dataset.dupok='1';return}}
+  if(NEWD&&!$('eForm').dataset.dupok){$('eMsg').innerHTML='<span class="spin"></span> Buscando coincidencias en toda la base…';
+    let cand=[];try{const j=await adminApi({a:'dup',n:doc.n,e:doc.e,m:(doc.cons[0]||{}).m||''});if(j.ok)cand=j.cand}catch(err){cand=posiblesDuplicados(doc.n).map(d=>({pct:null,c:d.c,n:d.n,e:d.e,ce:d.cons[0].ce,m:d.cons[0].m}))}
+    const alto=cand.filter(k=>k.pct==null||k.pct>=70);
+    if(alto.length){$('eMsg').innerHTML=`<div class="warn" style="margin:0"><b>Posible médico ya registrado</b><br>`+alto.map(k=>k.oculto?`Coincidencia del <b>${k.pct}%</b> con un médico que no tienes asignado${k.e?' ('+esc(k.e)+')':''}.`:`<b>${k.pct!=null?k.pct+'%':'Parecido'}</b> · <a href="#" data-dupopen="${k.c}">${esc(k.n)}</a> (${esc(k.e||'')}${k.ce?', '+esc(k.ce):''}${k.m?', '+esc(k.m):''})`).join('<br>')+`<br>Si es otra persona, pulsa <b>Guardar ficha</b> otra vez: quedará como <b>pendiente de unificar</b> y el administrador lo revisará.</div>`;$('eForm').dataset.dupok='1';return}
+    $('eMsg').textContent='';}
   if(!doc.cons.length){$('eMsg').textContent='Deja al menos una consulta con centro o dirección.';return}
   const urgOn=$('eUrg').checked, motivo=$('eUrgM').value.trim();
   if(NEWD){doc.nuevo=true;doc.a=$('eArea').value;if(urgOn)doc.prioridad='Urgente · '+(motivo||'Marcado desde la app');

@@ -389,8 +389,15 @@ h3[tabindex="-1"]:focus{outline:none}
 @media (max-width:760px){ .resg .resb{grid-template-columns:1fr 1fr} .urgrow{grid-template-columns:1fr} .pov{bottom:calc(90px + env(safe-area-inset-bottom,0px))} }
 
 /* ---------- v1.5: agenda, roles y catálogos ---------- */
+.pform input[type=checkbox]{width:20px!important;height:20px;min-height:0!important;flex:0 0 auto;accent-color:var(--navy)}
+.pform .chkrow{display:flex;gap:10px;align-items:center;white-space:normal!important;overflow:visible!important;font-size:14px!important;color:var(--ink)!important;font-weight:600;margin:6px 0 0}
+.dupb{display:inline-block;background:#FDE8E8;color:#9B2C2C;border:1px solid #F5C2C2;border-radius:999px;font-size:11.5px;font-weight:700;padding:1px 8px;vertical-align:1px}
+.duppar{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch;border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0;background:var(--panel)}
+.duppar .dc{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}.duppar .pct{align-self:center;font-weight:800;color:#B45309;font-size:18px;text-align:center}
+.duppar .da{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:760px){.duppar{grid-template-columns:1fr}.duppar .pct{text-align:left}}
 .agtop{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.agnav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.agt{margin-left:6px;color:var(--navy);text-transform:capitalize}
+.agnav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.agt{margin-left:6px;color:var(--navy)}
 .agi{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-left:5px solid #999;border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--panel);flex-wrap:wrap}
 .agr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.agb{display:flex;gap:6px;flex-wrap:wrap}
 .agst{color:#fff;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
@@ -592,7 +599,7 @@ h3[tabindex="-1"]:focus{outline:none}
 </div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.5.0';
+window.__APPVER='1.5.1';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -643,16 +650,16 @@ function transform(raw){
   const cons=new Map(); C.forEach(x=>{if(x['CÓDIGO']==='')return;const c=+x['CÓDIGO'];(cons.get(c)||cons.set(c,[]).get(c)).push(x)});
   const notas=new Map(); N.forEach(x=>{if(x['CÓDIGO']==='')return;const c=+x['CÓDIGO'];(notas.get(c)||notas.set(c,[]).get(c)).push([DI[x['DÍA']],x['FRANJA']==='Mañana'?'M':'T',x['DETALLE']||''])});
   const mk=x=>{const m=x['MUNICIPIO']||'';const cp=String(x['CP']||'');return {ce:x['CENTRO']||null,g:x['GRUPO']||x['CENTRO']||null,m,p:x['PROVINCIA']||'',d:x['DIRECCIÓN']||null,di:x['DISTRITO']||(m==='BARCELONA'?CPD0[cp]||null:null),cp,tel:x['TELÉFONO']||null,dy:['L','M','X','J','V'].map(k=>x[k]||''),cf:(x['CONFIRMADA']||'Sí')==='Sí',lat:parseFloat(x['LAT'])||null,lon:parseFloat(x['LON'])||null}};
-  return M.filter(x=>x['CÓDIGO']!==''&&!isNaN(+x['CÓDIGO'])).map(x=>{const c=+x['CÓDIGO'];const pr=x['PRIORIDAD COMERCIAL']||'';
+  return M.filter(x=>x['CÓDIGO']!==''&&!isNaN(+x['CÓDIGO'])&&!x['UNIFICADO EN']).map(x=>{const c=+x['CÓDIGO'];const pr=x['PRIORIDAD COMERCIAL']||'';
     let cs=(cons.get(c)||[]).sort((a,b)=>(+a['ORDEN'])-(+b['ORDEN'])).map(mk); if(!cs.length)cs=[mk(x)];
     return {c,t:x['TIPO']||'Persona',n:x['NOMBRE COMPLETO']||'',e:x['ESPECIALIDAD']||'',a:x['ÁREA']||'',car:x['CARGO']||'',eq:x['EQUIPO O UNIDAD']||'',ub:x['UBICACIÓN EN EL CENTRO']||'',
       p:x['PROVINCIA']||'',m:x['MUNICIPIO']||'',ce:x['CENTRO']||'',g:x['GRUPO']||x['CENTRO']||'',d:x['DIRECCIÓN']||'',cp:String(x['CP']||''),di:x['DISTRITO']||'',tel:x['TELÉFONO']||'',
       q:x['CALIDAD DE LA UBICACIÓN']||'Sin verificar: dato original sin dirección',st:x['ESTADO DE BÚSQUEDA']||'',url:x['URL FICHA']||'',cons:cs,
-      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||'',est:x['ESTADO COMERCIAL']||'',asig:String(x['ASIGNADO']||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean)}});
+      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||'',est:x['ESTADO COMERCIAL']||'',asig:String(x['ASIGNADO']||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean),dup:x['DUPLICADO']||'',dupDe:x['POSIBLE DUPLICADO DE']||''}});
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.5.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.5.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 /* descarga por cambios: solo lo nuevo desde la última vez; completa cada 7 días */
 function mergeDelta(raw,dl){
@@ -663,6 +670,7 @@ function mergeDelta(raw,dl){
   for(const n of ['VISITAS','TIEMPOS','AGENDA']){const d=dl[n];if(!d||!d.rows.length)continue;if(!raw[n]||!raw[n].h.length){raw[n]={h:d.h,rows:[]}}
     if(JSON.stringify(d.h)!==JSON.stringify(raw[n].h))return false;const map=new Map(raw[n].rows.map((r,i)=>[String(r[0]),i]));
     d.rows.forEach(r=>{const i=map.get(String(r[0]));if(i!=null)raw[n].rows[i]=r;else{raw[n].rows.push(r);map.set(String(r[0]),raw[n].rows.length-1)}})}
+  {const iu=raw.MEDICOS.h.indexOf('UNIFICADO EN');if(iu>=0){const un=new Set(raw.MEDICOS.rows.filter(r=>r[iu]).map(r=>String(r[0])));if(un.size)['MEDICOS','CONSULTAS','NOTAS_VISITA'].forEach(n=>{if(raw[n])raw[n].rows=raw[n].rows.filter(r=>!un.has(String(r[0])))})}}
   if(dl.permitidos){const ps=new Set(dl.permitidos.map(String));['MEDICOS','CONSULTAS','NOTAS_VISITA'].forEach(n=>{if(raw[n])raw[n].rows=raw[n].rows.filter(r=>ps.has(String(r[0])))})}
   if(dl.catalogos)raw.catalogos=dl.catalogos;if(dl.usuarios)raw.usuarios=dl.usuarios;if(dl.user)raw.user=dl.user;raw.hora=dl.hora;
   return true}
@@ -670,11 +678,12 @@ window.__refreshData=async()=>{
   const c=cfg();const old=await idb.get('raw');
   const semana=7*86400000, full=old&&old.full?Date.parse(old.full):0;
   if(old&&old.hora&&Date.now()-full<semana){
-    let dl;try{dl=await api({s:c.t,a:'cambios',desde:old.hora},60000)}catch(e){throw e}
+    let dl;try{dl=await api({s:c.t,a:'cambios',desde:old.hora,full:old.full},60000)}catch(e){throw e}
     if(!dl.ok&&dl.error==='sesion'){window.__sesionCaducada&&window.__sesionCaducada();throw new SesionError('sesión')}
     if(dl.ok&&!dl.completa){const me=String((c.user||{}).usuario||'').toLowerCase();
-      const otros=(t,col)=>{if(!dl[t]||!dl[t].rows.length)return 0;const i=dl[t].h.indexOf(col);return i<0?dl[t].rows.length:dl[t].rows.filter(r=>String(r[i]).toLowerCase()!==me).length};
-      const n=otros('MEDICOS','MODIFICADO POR')+otros('VISITAS','USUARIO')+otros('TIEMPOS','USUARIO')+otros('AGENDA','USUARIO')+(dl.permitidos&&old.MEDICOS&&dl.permitidos.length!==old.MEDICOS.rows.length?1:0);
+      const nuevos=(t,col)=>{const d=dl[t];if(!d||!d.rows.length)return 0;const o=old[t]||{h:[],rows:[]};const iu=d.h.indexOf(col);const prev=new Map(o.rows.map(r=>[String(r[0]),JSON.stringify(r)]));
+        return d.rows.filter(r=>(iu<0||String(r[iu]).toLowerCase()!==me)&&prev.get(String(r[0]))!==JSON.stringify(r)).length};
+      const n=nuevos('MEDICOS','MODIFICADO POR')+nuevos('VISITAS','USUARIO')+nuevos('TIEMPOS','USUARIO')+nuevos('AGENDA','USUARIO')+(dl.permitidos&&old.MEDICOS&&dl.permitidos.length!==old.MEDICOS.rows.length?1:0);
       const catCh=JSON.stringify(dl.catalogos||[])!==JSON.stringify(old.catalogos||[]);
       const raw=JSON.parse(JSON.stringify(old));if(mergeDelta(raw,dl)){await idb.set('raw',raw);return n>0||catCh}}
   }
