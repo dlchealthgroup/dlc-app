@@ -1,0 +1,15 @@
+{
+  "name": "DLC OS",
+  "short_name": "DLC OS",
+  "description": "DLC OS · Rutas, visitas y fichas de médicos de DLC Health Group",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F7FA",
+  "theme_color": "#123A63",
+  "lang": "es",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
