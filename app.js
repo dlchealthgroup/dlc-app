@@ -4,7 +4,11 @@ const USER=window.__USER||{usuario:'',nombre:'',rol:'',perm:{admin:false,mods:{}
 
 const DAYS=['L','M','X','J','V'], DAYN={L:'lunes',M:'martes',X:'miércoles',J:'jueves',V:'viernes'};
 const CALS=['Confirmada con dirección','Confirmada: centro sin dirección','Confirmada: solo población','Sin verificar: dato original con dirección','Sin verificar: dato original sin dirección'];
-const RESULTS=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe','No estaba','No interesado','Ya no pasa consulta aquí'];
+let CAT=(window.__RAWJ&&window.__RAWJ.catalogos)||[];
+const catVals=(t,all)=>CAT.filter(x=>x.tipo===t&&(all||x.activo)).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor)).map(x=>x.valor);
+const RES_DEF=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe','No estaba','No interesado','Ya no pasa consulta aquí'];
+let RESULTS=catVals('RESULTADO').length?catVals('RESULTADO'):RES_DEF;
+const resPos=r=>{const x=CAT.find(c=>c.tipo==='RESULTADO'&&c.valor===r);return x?x.extra!=='neg':['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe'].includes(r)};
 const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const $=id=>document.getElementById(id);
 const esc=s=>(s??'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -14,7 +18,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const fmtDate=s=>s?s.split('-').reverse().join('/'):'';
 const BYCODE=new Map(DATA.map(d=>[d.c,d]));
 
-const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(DATA.map(d=>d.a)),esp:uniq(DATA.map(d=>d.e)),tipo:['Persona','Centro']};
+const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(DATA.map(d=>d.a).concat(((window.__RAWJ&&window.__RAWJ.catalogos)||[]).filter(x=>x.tipo==='AREA'&&x.activo).map(x=>x.valor))),esp:uniq(DATA.map(d=>d.e).concat(((window.__RAWJ&&window.__RAWJ.catalogos)||[]).filter(x=>x.tipo==='ESPECIALIDAD'&&x.activo).map(x=>x.valor))),tipo:['Persona','Centro']};
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
@@ -197,12 +201,12 @@ function render(){
   if(!tabOk(S.tab)){S.tab=firstTab()||(PERM.admin?'A':'H')}
   applyPerms();
   renderFilters();
-  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
-  const noF=(S.tab==='R'||S.tab==='S'||S.tab==='P'||S.tab==='H'||S.tab==='A');document.querySelector('aside').style.display=noF?'none':'';$('fBtn').style.visibility=noF?'hidden':'';
+  for(const [k,id] of [['H','tabH'],['G','tabG'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
+  const noF=(S.tab==='R'||S.tab==='S'||S.tab==='P'||S.tab==='H'||S.tab==='A'||S.tab==='G');document.querySelector('aside').style.display=noF?'none':'';$('fBtn').style.visibility=noF?'hidden':'';
   document.querySelectorAll('#bnav [data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===S.tab));
   const nf=[S.prov,S.muni,S.grupo,S.centro,S.area,S.esp,S.tipo,S.texto,S.seg,S.est,S.issue].filter(Boolean).length+(S.dias.length?1:0)+(S.cal.length?1:0)+(S.top?1:0);$('fBtn').textContent=nf?`Filtros · ${nf}`:'Filtros';$('fBtn').classList.toggle('on',!!nf);
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
-  if(S.tab==='A')renderA(); else if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
+  if(S.tab==='A')renderA(); else if(S.tab==='G')renderG(); else if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
   chkBar();
   $('foot').textContent=datosTxt();
   $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('noinfo',!$('count').textContent.trim()&&noF);
@@ -300,7 +304,7 @@ function openDlg(code,ce){
   const d=BYCODE.get(code),s=segOf(code)||{};DLGCODE=code;
   $('dlgTitle').textContent=d.n;$('dlgSub').textContent=d.e+(DB?'':' · Registro no disponible fuera de Claude');
   $('vFecha').value=today();$('vWhen').innerHTML=`Hoy, ${fmtDate(today())} <span class="sm">· se guarda la hora del registro</span>`;fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';$('vMu').value='';$('vCal').checked=false;
-  const POS=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe'],NEG=RESULTS.filter(r=>!POS.includes(r));
+  RESULTS=catVals('RESULTADO').length?catVals('RESULTADO'):RES_DEF;const POS=RESULTS.filter(resPos),NEG=RESULTS.filter(r=>!resPos(r));
   const grp=(t,cls,l)=>`<div class="resg ${cls}"><div class="sm">${t}</div><div class="resb">${l.map(r=>`<button type="button" data-res="${esc(r)}" aria-pressed="false">${esc(r)}</button>`).join('')}</div></div>`;
   $('vResB').innerHTML=grp('Visita realizada','pos',POS)+grp('Sin visita o sin interés','neg',NEG);
   const ces=uniq(d.cons.map(c=>c.ce).concat(ce||[]));$('vCentro').innerHTML=ces.map(x=>`<option>${esc(x)}</option>`).join('');$('vCentro').value=ce||s.ce||ces[0]||'';
@@ -316,6 +320,7 @@ async function saveDlg(){
   const horario={};$('vDias').querySelectorAll('input').forEach(i=>{if(i.value.trim())horario[i.dataset.k]=i.value.trim()});
   const f=$('vFecha').value||today(),ce=$('vCentro').value;
   const mu=Math.max(0,parseInt($('vMu').value,10)||0);
+  agMarcarVisitada(d.c,f);
   {const ne=estadoDeRes(res),ord=['Sin contactar','Presentado','Interesado','Prescribe'];if(d.est&&ne&&ne!=='No interesado'&&ord.indexOf(ne)>ord.indexOf(d.est))d.est=ne;}
   const hh=nowHM();
   const visitas=(prev.visitas||[]).concat([{f,h:hh,res,ce,nota:$('vNota').value.trim(),mu}]).slice(-20);
@@ -346,7 +351,7 @@ function init(){
   on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('areaSel','change',e=>{setArea(e.target.value)});
   on('reset','click',()=>{clearFilters();reset0()});
   on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
-  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']])on(id,'click',()=>{S.tab=k;render()});
+  for(const [k,id] of [['H','tabH'],['G','tabG'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']])on(id,'click',()=>{S.tab=k;render()});
   on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
@@ -359,6 +364,7 @@ function init(){
   let qt;on('qs','input',e=>{clearTimeout(qt);qt=setTimeout(()=>quickSearch(e.target.value),150)});
   on('qs','focus',e=>quickSearch(e.target.value));
   document.addEventListener('click',e=>{if(!e.target.closest('.qs'))$('qsr').hidden=true});
+  document.addEventListener('click',e=>{const q=e.target.closest('[data-q]');if(q&&!e.target.closest('#qsr')&&!e.target.closest('#agenda'))openQuick(+q.dataset.q)});
   on('qsr','click',e=>{const b=e.target.closest('[data-q]');if(!b)return;$('qsr').hidden=true;$('qs').blur();openQuick(+b.dataset.q)});
   on('qClose','click',()=>$('qdlg').close());
   on('vResB','click',e=>{const b=e.target.closest('[data-res]');if(!b)return;$('vRes').value=b.dataset.res;$('vResB').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))});
@@ -376,12 +382,12 @@ function init(){
   on('routes','click',e=>{const b=e.target.closest('.rcard');if(b){S.route=b.dataset.r;render()}});
   on('day','click',e=>{const b=e.target.closest('[data-cd]');if(b){S.corDay=+b.dataset.cd;render()}});
   on('plan','change',e=>{if(e.target.id==='pAr')setArea(e.target.value)});
-  on('plan','click',e=>{if(e.target.id==='pUseMin'){e.preventDefault();$('pM').value=minPorMedico();return}const ci=e.target.closest('[data-chkin]');if(ci){checkIn(ci.dataset.chkin,ci.dataset.chkm);return}if(e.target.closest('[data-chkout]')){checkOut();return}if(e.target.id==='pCal'){planToCalendar();return}if(e.target.id==='pGo'){busy(e.target,()=>runPlan(),'Calculando la ruta…');return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
+  on('plan','click',e=>{if(e.target.id==='pAg'){guardarPlanAgenda();return}if(e.target.id==='pUseMin'){e.preventDefault();$('pM').value=minPorMedico();return}const ci=e.target.closest('[data-chkin]');if(ci){checkIn(ci.dataset.chkin,ci.dataset.chkm);return}if(e.target.closest('[data-chkout]')){checkOut();return}if(e.target.id==='pCal'){planToCalendar();return}if(e.target.id==='pGo'){busy(e.target,()=>runPlan(),'Calculando la ruta…');return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
   on('day','change',e=>{const i=e.target.closest('[data-pick]');if(!i)return;const c=+i.dataset.pick;i.checked?S.picks.add(c):S.picks.delete(c);render()});
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
   on('vCentro','change',()=>{const d=BYCODE.get(DLGCODE),c=d.cons.find(x=>x.ce===$('vCentro').value);if(c)$('vDias').querySelectorAll('input').forEach((i,ix)=>{if(!i.value)i.value=c.dy[ix]||''})});
-  setupEdit();setupShare();setupV133();setupAdmin();render();setupDownload();setupDb();
+  setupEdit();setupShare();setupV133();setupAdmin();setupAgenda();setupCat();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
 function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:'',asig:''})}
@@ -515,9 +521,12 @@ function renderH(){
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
-  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
+  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pendientesRuta().length,'pendientes de rutas anteriores','clock',pendientesRuta().length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
   h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
      <div class="acts2">${tabOk('R')?`<button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button>`:''}${tabOk('P')?`<button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button>`:''}</div></div></div>`;
+  {const hoyAg=AG.filter(x=>mineAg(x)&&x.f===today()&&x.e!=='Descartada').sort((a,b)=>(a.h||'99').localeCompare(b.h||'99'));const pr=pendientesRuta();
+   if(tabOk('G')&&hoyAg.length)h+=`<div class="hsec"><h3>Tu agenda de hoy (${hoyAg.filter(x=>x.e==='Visitada').length} de ${hoyAg.length} visitadas)</h3>${hoyAg.map(x=>agItem(x)).join('')}</div>`;
+   if(pr.length)h+=`<div class="hsec"><h3 style="color:#B45309">Pendientes de rutas anteriores (${pr.length})</h3><p class="sm">Los tenías planificados y no se visitaron. ${tabOk('P')?'Se incluyen con prioridad en el Plan del día.':''}</p>${pr.slice(0,8).map(x=>agItem(x,true)).join('')}${pr.length>8&&tabOk('G')?'<p class="sm">Ver todos en Agenda.</p>':''}</div>`;}
   h+=`<div class="hsec"><h3>Próximas acciones (7 días)</h3>${due.length?due.slice(0,30).map(s=>{const d=BYCODE.get(s.c);const c=d.cons.find(x=>x.ce===s.ce)||d.cons[0];
      return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm"><b style="color:${s.prox_f<td?'var(--warn)':'var(--navy)'}">${fmtDate(s.prox_f)}</b> · ${esc(s.prox||'Seguimiento')} · última visita ${fmtDate(s.ultima)} (${esc(s.res||'')})</div>${actBtns(d,c,`<button type="button" class="act" data-cal="${d.c}">Al calendario</button>`)}</div>`}).join(''):'<p class="sm">No hay acciones con fecha en los próximos 7 días.</p>'}</div>`;
   h+=`<div class="hsec"><h3>Urgentes sin visitar</h3>${urg.length?urg.map(d=>{const c=d.cons[0];return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm">${esc(d.top)} · ${esc(c.ce||'')}${d.vn?' · '+esc(d.vn):''}</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">Todos los urgentes están visitados.</p>'}</div>`;
@@ -546,7 +555,9 @@ function openQuick(code){const d=BYCODE.get(code);if(!d)return;const s=segOf(cod
    (d.cons.length>1?`<h4 style="margin:14px 0 6px">Consultas</h4>${d.cons.map(c=>`<div class="sm" style="margin-bottom:6px"><b>${esc(c.ce||'Sin centro')}</b> · ${esc([c.d,c.m].filter(Boolean).join(', '))}${c.dy.some(Boolean)?' · '+DAYS.map((k,i)=>c.dy[i]?k+' '+esc(c.dy[i]):'').filter(Boolean).join(', '):''}${mapsHref(c)?` · <a href="${esc(mapsHref(c))}" target="_blank" rel="noopener">Cómo llegar</a>`:''}</div>`).join('')}`:'')+
    (s&&s.visitas&&s.visitas.length?`<h4 style="margin:14px 0 6px">Visitas</h4>${s.visitas.slice().reverse().map(v=>`<div class="sm" style="margin-bottom:4px">${fmtDate(v.f)}${v.h?' '+esc(v.h):''} · <b>${esc(v.res)}</b>${v.mu?` · ${v.mu} muestras`:''}${v.nota?' · '+esc(v.nota):''}</div>`).join('')}`:'')+
    (s&&s.prox?`<p class="sm" style="margin-top:10px">Próxima acción: <b>${esc(s.prox)}</b> ${fmtDate(s.prox_f)}</p>`:'')+
-   (d.url?`<p class="sm"><a href="${esc(d.url)}" target="_blank" rel="noopener">Ficha web</a></p>`:'');
+   (d.url?`<p class="sm"><a href="${esc(d.url)}" target="_blank" rel="noopener">Ficha web</a></p>`:'')+
+   (can('agenda')?`<div class="acts2"><button type="button" class="act" data-agendar="${d.c}">+ Añadir a mi agenda</button></div>`:'')+
+   (()=>{const it=AG.filter(x=>x.c===d.c&&(mineAg(x)||PERM.admin)&&x.e!=='Descartada').sort((a,b)=>b.f.localeCompare(a.f)).slice(0,5);return it.length?`<h4 style="margin:14px 0 6px">Agenda</h4>`+it.map(x=>`<div class="sm">${fmtDate(x.f)}${x.h?' '+esc(x.h):''} · <b style="color:${AGCOL[estAg(x)]}">${estAg(x)}</b></div>`).join(''):''})();
   if(!$('qdlg').open)$('qdlg').showModal();}
 function quickSearch(q){const n=norm(q);if(n.length<2){$('qsr').hidden=true;return}
   const r=[];for(const d of DATA){if(norm(d.n).includes(n)||d.cons.some(c=>norm(c.ce).includes(n)||norm(c.m).includes(n)))r.push(d);if(r.length>=40)break}
@@ -696,7 +707,7 @@ function setupV133(){
 const PERM=USER.perm||{admin:false,mods:{},tabs:{},acc:{}};
 const can=k=>!!(PERM.admin||(PERM.acc&&PERM.acc[k]));
 const tabOk=k=>k==='A'?!!PERM.admin:!!(PERM.admin||(PERM.tabs&&PERM.tabs[k]&&PERM.mods&&PERM.mods.rutas));
-const TABS_ORD=['H','C','M','P','R','S'];
+const TABS_ORD=['H','G','C','M','P','R','S'];
 const firstTab=()=>TABS_ORD.find(tabOk)||null;
 function sesionCaducada(){if(window.__sesionAvisada)return;window.__sesionAvisada=true;toast('Tu sesión ha caducado. Vuelve a entrar.',true);setTimeout(()=>window.__logout(true),1800)}
 window.__sesionCaducada=sesionCaducada;
@@ -711,14 +722,18 @@ function applyPerms(){
 }
 /* ---- administración ---- */
 let USRS=(window.__RAWJ&&window.__RAWJ.usuarios)||[];
-const PEST_N={H:'Hoy',C:'Centros',M:'Médicos',P:'Plan del día',R:'Rutas',S:'Seguimiento'};
+const PEST_N={H:'Hoy',G:'Agenda',C:'Centros',M:'Médicos',P:'Plan del día',R:'Rutas',S:'Seguimiento'};
+const NIV_N=['Sin acceso','Ver','Editar','Completo'];
+const AREA_AYUDA={H:['','Ve su resumen','Además registra desde Hoy','Igual que Editar'],G:['','Ve su agenda','Además crea, reprograma y descarta citas','Igual que Editar'],C:['','Ve el ranking de centros','Igual que Ver','Igual que Ver'],M:['','Ve las fichas','Además edita fichas, urgentes y estado','Además da de alta médicos y exporta a Excel'],P:['','Consulta el plan','Además guarda rutas y hace check-in','Igual que Editar'],R:['','Ve las rutas','Igual que Ver','Igual que Ver'],S:['','Ve el seguimiento','Además registra visitas','Además exporta a Excel']};
 const ACC_N={editar:'Editar fichas',registrar:'Registrar visitas y check-in',urgente:'Marcar urgentes',estado:'Cambiar estado comercial',nuevo:'Dar de alta médicos',excel:'Descargar Excel y CSV'};
-const ROLES_UI={'Administrador':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{editar:1,registrar:1,urgente:1,estado:1,nuevo:1,excel:1}},'Comercial':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{editar:1,registrar:1,urgente:1,estado:1,nuevo:1,excel:0}},'Solo consulta':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{}}};
+const ROLES_UI={'Administrador':{H:3,G:3,C:3,M:3,P:3,R:3,S:3},'Comercial':{H:2,G:2,C:1,M:2,P:2,R:1,S:2},'Solo consulta':{H:1,G:1,C:1,M:1,P:1,R:1,S:1}};
 async function adminApi(params){const c=window.__cfg();const j=await window.__api({s:c.t,...params},40000);if(!j.ok&&j.error==='sesion'){sesionCaducada();throw new Error('sesión')}return j}
 function renderA(){
   $('count').innerHTML='';
+  const secs=`<div class="seg" style="margin:0 0 12px">${[['usuarios','Usuarios'],['catalogos','Catálogos']].map(([k,t])=>`<button type="button" data-asec="${k}" aria-pressed="${ASEC===k}">${t}</button>`).join('')}</div>`;
+  if(ASEC==='catalogos'){$('admin').innerHTML=secs+renderCat();return}
   const nAs=u=>DATA.filter(d=>(d.asig||[]).includes(u)).length;
-  $('admin').innerHTML=`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
+  $('admin').innerHTML=secs+`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
    <p class="sm">Los comerciales solo ven los médicos que les asignes y sus propias visitas. El administrador lo ve todo.</p>
    <div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Médicos asignados</th><th>Último acceso</th><th></th></tr></thead><tbody>
    ${USRS.map(u=>`<tr><td><div class="nm">${esc(u.nombre||u.usuario)}</div><div class="sm">${esc(u.usuario)}${u.email?' · '+esc(u.email):''}</div></td><td>${esc(u.rol)}</td>
@@ -727,12 +742,11 @@ function renderA(){
      <td style="white-space:nowrap"><button class="reg" data-ue="${esc(u.usuario)}">Editar</button> <button class="reg" data-ur="${esc(u.usuario)}">Contraseña</button>${u.rol!=='Administrador'?` <button class="reg" data-ua="${esc(u.usuario)}">Asignar médicos</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Sin usuarios</td></tr>'}
    </tbody></table></div>`;
 }
-function permBoxes(p,dis){return `<div class="pgrid"><div><div class="sm"><b>Módulos</b></div><label class="urgchk"><input type="checkbox" data-pm="rutas" ${p.mods&&p.mods.rutas?'checked':''} ${dis}> Rutas y médicos</label></div>
-  <div><div class="sm"><b>Pestañas</b></div>${TABS_ORD.map(k=>`<label class="urgchk"><input type="checkbox" data-pt="${k}" ${p.tabs&&p.tabs[k]?'checked':''} ${dis}> ${PEST_N[k]}</label>`).join('')}</div>
-  <div><div class="sm"><b>Acciones</b></div>${Object.keys(ACC_N).map(k=>`<label class="urgchk"><input type="checkbox" data-pa="${k}" ${p.acc&&p.acc[k]?'checked':''} ${dis}> ${ACC_N[k]}</label>`).join('')}</div></div>`}
+function permBoxes(ar,dis){return `<div class="pmx"><div class="pmh"><span></span>${NIV_N.map(n=>`<span>${n}</span>`).join('')}</div>
+  ${TABS_ORD.map(k=>`<div class="pmr"><b>${PEST_N[k]}</b>${[0,1,2,3].map(l=>`<label title="${esc(AREA_AYUDA[k][l]||'')}"><input type="radio" name="pa_${k}" value="${l}" ${(+ar[k]||0)===l?'checked':''} ${dis}><span class="mlab">${NIV_N[l]}</span></label>`).join('')}<div class="sm pmx-help" data-help="${k}">${esc(AREA_AYUDA[k][+ar[k]||0]||'Sin acceso')}</div></div>`).join('')}</div>`}
 function openUser(u){
-  const nuevo=!u;u=u||{usuario:'',nombre:'',email:'',rol:'Comercial',activo:true,perm:ROLES_UI['Comercial']};
-  const p=u.rol==='Administrador'?ROLES_UI['Administrador']:(u.perm||ROLES_UI[u.rol]);
+  const nuevo=!u;u=u||{usuario:'',nombre:'',email:'',rol:'Comercial',activo:true};
+  const p=u.rol==='Administrador'?ROLES_UI['Administrador']:((u.perm&&u.perm.areas)||ROLES_UI[u.rol]||ROLES_UI['Comercial']);
   $('ubody').innerHTML=`<h3>${nuevo?'Nuevo usuario':esc(u.nombre||u.usuario)}</h3>
    <div class="grid2"><div><label for="uN">Nombre</label><input id="uN" value="${esc(u.nombre||'')}"></div><div><label for="uU">Usuario</label><input id="uU" value="${esc(u.usuario)}" ${nuevo?'':'disabled'} autocapitalize="off" spellcheck="false" placeholder="p. ej. lorena"></div></div>
    <label for="uE">Email</label><input id="uE" type="email" value="${esc(u.email||'')}">
@@ -742,12 +756,13 @@ function openUser(u){
    ${nuevo?'<label class="urgchk" style="margin-top:12px"><input type="checkbox" id="uMail" checked> Enviar las credenciales por email</label>':''}
    <div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="button" class="btn" id="uSave">${nuevo?'Crear usuario':'Guardar'}</button></div><div id="uRes"></div>`;
   $('uR').onchange=()=>{const r=$('uR').value;$('uPerm').innerHTML=permBoxes(ROLES_UI[r],r==='Administrador'?'disabled':'')};
+  $('uPerm').onchange=e=>{const m=/^pa_(\w)$/.exec(e.target.name||'');if(m){const h=$('uPerm').querySelector(`[data-help="${m[1]}"]`);h.textContent=AREA_AYUDA[m[1]][+e.target.value]||'Sin acceso'}};
   $('uAct').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;$('uAct').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))};
   $('uCancel').onclick=()=>$('udlg').close();
   $('uSave').onclick=e=>busy(e.target,async()=>{
     const d={usuario:$('uU').value.trim().toLowerCase(),nombre:$('uN').value.trim(),email:$('uE').value.trim(),rol:$('uR').value,activo:$('uAct').querySelector('[aria-pressed="true"]').dataset.v==='1',mail:!!($('uMail')&&$('uMail').checked),
-      perm:{mods:{rutas:!!$('ubody').querySelector('[data-pm="rutas"]').checked},tabs:{},acc:{}}};
-    $('ubody').querySelectorAll('[data-pt]').forEach(x=>d.perm.tabs[x.dataset.pt]=x.checked);$('ubody').querySelectorAll('[data-pa]').forEach(x=>d.perm.acc[x.dataset.pa]=x.checked);
+      areas:{}};
+    TABS_ORD.forEach(k=>{const x=$('ubody').querySelector(`[name="pa_${k}"]:checked`);d.areas[k]=x?+x.value:0});
     if(!/^[a-z0-9._-]{3,30}$/.test(d.usuario)){$('uRes').innerHTML='<p class="warn">El usuario solo puede tener minúsculas, números, punto o guion (3 a 30).</p>';return}
     try{const j=await adminApi({a:'usuario',d:JSON.stringify(d)});
       if(!j.ok){$('uRes').innerHTML=`<p class="warn">${j.error==='no_propio'?'No puedes quitarte a ti mismo el rol de administrador ni desactivarte.':'No se ha podido guardar: '+esc(j.error)}</p>`;return}
@@ -798,6 +813,105 @@ function setupAdmin(){
   document.addEventListener('click',e=>{const t=e.target.closest('[data-as1]');if(t){e.preventDefault();const c=+t.dataset.as1,d=BYCODE.get(c);asignar([c],(d.asig||[]).includes(S.asignando)?'quitar':'add',t)}});
   $('modSel').addEventListener('change',e=>{if(e.target.value==='admin'){S.tab='A'}else if(S.tab==='A'){S.tab=firstTab()}render();window.scrollTo({top:0})});
   $('fAsig')&&$('fAsig').addEventListener('change',e=>{S.asig=e.target.value;reset0()});
+}
+
+/* ================= v1.5: agenda y rutas planificadas ================= */
+const AGH=(window.__RAWJ&&window.__RAWJ.AGENDA&&window.__RAWJ.AGENDA.h)||[];
+let AG=((window.__RAWJ&&window.__RAWJ.AGENDA&&window.__RAWJ.AGENDA.rows)||[]).map(r=>{const o={};AGH.forEach((h,i)=>o[h]=r[i]);return {id:o['ID'],f:o['FECHA'],h:o['HORA'],u:String(o['USUARIO']||'').toLowerCase(),c:+o['CÓDIGO']||0,n:o['NOMBRE'],ce:o['CENTRO'],m:o['MUNICIPIO'],e:o['ESTADO']||'Planificada',o:o['ORIGEN'],nota:o['NOTA']}});
+const ME=String(USER.usuario||'').toLowerCase();
+const G={vista:'dia',fecha:today(),quien:'yo'};
+const estAg=x=>x.e==='Planificada'&&x.f<today()?'Pendiente de ruta':x.e;
+const AGCOL={'Planificada':'#2B6CB0','Visitada':'#1F8A5B','Pendiente de ruta':'#D97706','Reprogramada':'#8B5CF6','Descartada':'#94A3B8'};
+const mineAg=x=>x.u===ME;
+const agVisible=()=>AG.filter(x=>PERM.admin?(G.quien==='todos'?true:G.quien==='yo'?mineAg(x):x.u===G.quien):mineAg(x));
+function pendientesRuta(){return AG.filter(x=>mineAg(x)&&estAg(x)==='Pendiente de ruta')}
+function agGuardar(it){const i=AG.findIndex(x=>x.id===it.id);if(i>=0)AG[i]={...AG[i],...it};else AG.push(it);
+  queueOp('agenda',{id:it.id,f:it.f,h:it.h,c:it.c,n:it.n,ce:it.ce,m:it.m,e:it.e,o:it.o,nota:it.nota||''},'id')}
+function agNueva(d,f,h,ce,m,o){return {id:'ag-'+uid(),f,h:h||'',u:ME,c:d.c,n:d.n,ce:ce||(d.cons[0]&&d.cons[0].ce)||'',m:m||(d.cons[0]&&d.cons[0].m)||'',e:'Planificada',o:o||'manual'}}
+function agMarcarVisitada(c,f){AG.forEach(x=>{if(x.c===c&&mineAg(x)&&x.e==='Planificada'&&x.f<=f)x.e='Visitada'})}
+function guardarPlanAgenda(){const pl=P.plan;if(!pl||pl.error||!can('agenda'))return;
+  let quit=0;AG.forEach(x=>{if(mineAg(x)&&x.f===P.fecha&&x.o==='plan'&&x.e==='Planificada'){x.e='Descartada';agGuardar(x);quit++}});
+  let n=0;const enPlan=new Set();pl.stops.forEach(s=>{if(s.lunch)return;s.seq.forEach(x=>{agGuardar(agNueva(x.d,P.fecha,hm(x.at),s.ct.ce||'Consulta privada',s.ct.m,'plan'));enPlan.add(x.d.c);n++})});
+  pendientesRuta().forEach(x=>{if(enPlan.has(x.c)){x.e='Reprogramada';x.nota=(x.nota?x.nota+' · ':'')+'Incluido en la ruta del '+fmtDate(P.fecha);agGuardar(x)}});
+  toast(`Ruta guardada en tu agenda: ${n} ${n===1?'cita':'citas'}${quit?' (sustituye a la anterior)':''}`);render()}
+function agFecha(x,title,onok){ // pide fecha y hora
+  $('ubody').innerHTML=`<h3>${esc(title)}</h3><p class="sm">${esc(x.n||'')}${x.ce?' · '+esc(x.ce):''}</p><div class="grid2"><div><label for="agF">Fecha</label><input type="date" id="agF" value="${x.f&&x.f>=today()?x.f:today()}"></div><div><label for="agH">Hora (opcional)</label><input type="time" id="agH" value="${esc(x.h||'')}"></div></div>
+   <label for="agN">Nota (opcional)</label><input id="agN" value="${esc(x.nota||'')}"><div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="button" class="btn" id="agOk">Guardar</button></div>`;
+  $('uCancel').onclick=()=>$('udlg').close();$('agOk').onclick=()=>{const f=$('agF').value;if(!f){toast('Elige una fecha',true);return}onok(f,$('agH').value,$('agN').value.trim());$('udlg').close()};$('udlg').showModal()}
+function agReprogramar(id){const x=AG.find(a=>a.id===id);if(!x)return;agFecha(x,'Reprogramar visita',(f,h,nota)=>{x.e='Reprogramada';agGuardar(x);const d=BYCODE.get(x.c)||{c:x.c,n:x.n,cons:[{ce:x.ce,m:x.m}]};const nu=agNueva(d,f,h,x.ce,x.m,'reprogramada');nu.nota=nota;agGuardar(nu);toast('Reprogramada para el '+fmtDate(f));render()})}
+function agDescartar(id){const x=AG.find(a=>a.id===id);if(!x)return;if(!confirm('¿Descartar esta cita de '+x.n+'?'))return;x.e='Descartada';agGuardar(x);toast('Cita descartada');render()}
+function agAgendar(c){const d=BYCODE.get(c);if(!d||!can('agenda'))return;agFecha({n:d.n,ce:d.cons[0].ce,f:today()},'Añadir a mi agenda',(f,h,nota)=>{const nu=agNueva(d,f,h,null,null,'manual');nu.nota=nota;agGuardar(nu);toast('Añadido a tu agenda el '+fmtDate(f));render()})}
+function agItem(x,conDia){const st=estAg(x),own=mineAg(x)||PERM.admin,d=BYCODE.get(x.c);
+  const acts=[];if(d)acts.push(`<button type="button" class="reg" data-q="${x.c}">Ficha</button>`);
+  if(can('registrar')&&mineAg(x)&&(st==='Planificada'||st==='Pendiente de ruta')&&d)acts.push(`<button type="button" class="reg" data-reg="${x.c}" data-ce="${esc(x.ce||'')}">Registrar</button>`);
+  if(can('agenda')&&own&&(st==='Planificada'||st==='Pendiente de ruta')){acts.push(`<button type="button" class="reg" data-agr="${x.id}">Reprogramar</button>`);acts.push(`<button type="button" class="reg" data-agd="${x.id}">Descartar</button>`)}
+  return `<div class="agi" style="border-left-color:${AGCOL[st]||'#999'}"><div><div class="nm">${conDia?fmtDate(x.f)+' · ':''}${x.h?esc(x.h)+' · ':''}${esc(x.n||'')}</div><div class="sm">${esc(x.ce||'')}${x.m?' · '+esc(x.m):''}${PERM.admin&&x.u!==ME?' · <b>'+esc(x.u)+'</b>':''}${x.nota?' · '+esc(x.nota):''}</div></div><div class="agr"><span class="agst" style="background:${AGCOL[st]}">${st}</span><span class="agb">${acts.join('')}</span></div></div>`}
+const addD=(f,n)=>{const d=new Date(f+'T12:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+const lunes=f=>{const d=new Date(f+'T12:00');return addD(f,-((d.getDay()+6)%7))};
+const DN=['lun','mar','mié','jue','vie','sáb','dom'];
+function cumplimiento(list){const past=list.filter(x=>(x.f<today()||(x.f===today()&&x.e==='Visitada'))&&x.e!=='Descartada'&&x.e!=='Reprogramada');const v=past.filter(x=>x.e==='Visitada').length;return {v,t:past.length,p:past.length?Math.round(v/past.length*100):null}}
+function renderG(){
+  $('count').innerHTML='';const vis=agVisible();
+  let rango,titulo;
+  if(G.vista==='dia'){rango=[G.fecha,G.fecha];titulo=new Date(G.fecha+'T12:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})}
+  else if(G.vista==='semana'){const l=lunes(G.fecha);rango=[l,addD(l,6)];titulo='Semana del '+fmtDate(l)}
+  else{const m=G.fecha.slice(0,7);rango=[m+'-01',m+'-31'];titulo=new Date(G.fecha+'T12:00').toLocaleDateString('es',{month:'long',year:'numeric'})}
+  const enR=vis.filter(x=>x.f>=rango[0]&&x.f<=rango[1]&&x.e!=='Descartada');const cu=cumplimiento(enR);
+  const pend=vis.filter(x=>estAg(x)==='Pendiente de ruta');
+  const users=PERM.admin?[...new Set(AG.map(x=>x.u))].filter(u=>u&&u!==ME):[];
+  let h=`<div class="agtop"><div class="seg" id="agV">${[['dia','Día'],['semana','Semana'],['mes','Mes']].map(([k,t])=>`<button type="button" data-v="${k}" aria-pressed="${G.vista===k}">${t}</button>`).join('')}</div>
+   <div class="agnav"><button type="button" class="reg" data-nav="-1">‹</button><button type="button" class="reg" data-nav="0">Hoy</button><button type="button" class="reg" data-nav="1">›</button><b class="agt">${esc(titulo)}</b></div>
+   ${PERM.admin?`<select id="agQ" class="areasel"><option value="yo" ${G.quien==='yo'?'selected':''}>Mis rutas</option><option value="todos" ${G.quien==='todos'?'selected':''}>Todos</option>${users.map(u=>`<option value="${esc(u)}" ${G.quien===u?'selected':''}>${esc((USRS.find(x=>x.usuario===u)||{}).nombre||u)}</option>`).join('')}</select>`:''}</div>
+   <div class="kpis" style="margin-top:12px">${kpi(enR.length,'citas en este periodo','task')}${kpi(enR.filter(x=>x.e==='Visitada').length,'visitadas','visit','k-ok')}${kpi(pend.length,'pendientes de ruta (todas las fechas)','urg',pend.length?'k-warn':'k-ok')}${kpi(cu.p==null?'—':cu.p+'%','cumplimiento de ruta'+(cu.t?` (${cu.v} de ${cu.t})`:''),'star')}</div>`;
+  if(G.vista==='dia'){
+    const items=enR.slice().sort((a,b)=>(a.h||'99').localeCompare(b.h||'99'));
+    const sinCita=[];if(G.quien!=='todos'){SEG.forEach(sg=>(sg.visitas||[]).forEach(v=>{if(v.f===G.fecha&&!items.some(x=>x.c===sg.c&&x.e==='Visitada'))sinCita.push({c:sg.c,n:sg.n,v})}))}
+    h+=items.length?items.map(x=>agItem(x)).join(''):'<p class="sm">No hay citas este día.</p>';
+    if(sinCita.length)h+=`<h4 class="agh4">Visitas sin cita este día</h4>`+sinCita.map(s=>`<div class="agi" style="border-left-color:#1F8A5B"><div><div class="nm">${s.v.h?esc(s.v.h)+' · ':''}${esc(s.n||'')}</div><div class="sm">${esc(s.v.ce||'')} · ${esc(s.v.res||'')}</div></div></div>`).join('');
+  }else if(G.vista==='semana'){
+    h+='<div class="agweek">'+[0,1,2,3,4,5,6].map(i=>{const f=addD(rango[0],i);const it=enR.filter(x=>x.f===f).sort((a,b)=>(a.h||'99').localeCompare(b.h||'99'));
+      return `<div class="agday ${f===today()?'hoy':''}"><button type="button" class="agdh" data-dia="${f}">${DN[i]} ${+f.slice(8)}</button>${it.map(x=>`<button type="button" class="agchip" data-q="${x.c}" style="border-left-color:${AGCOL[estAg(x)]}">${x.h?esc(x.h)+' ':''}${esc((x.n||'').split(',')[0])}</button>`).join('')||'<span class="sm">—</span>'}</div>`}).join('')+'</div>';
+  }else{
+    const m=G.fecha.slice(0,7),first=m+'-01',start=lunes(first);let cells='';
+    for(let i=0;i<42;i++){const f=addD(start,i);if(i>=35&&f.slice(0,7)!==m)break;const it=enR.filter(x=>x.f===f);const c=k=>it.filter(x=>estAg(x)===k).length;
+      cells+=`<button type="button" class="agcell ${f.slice(0,7)!==m?'fuera':''} ${f===today()?'hoy':''}" data-dia="${f}"><span class="agn">${+f.slice(8)}</span>${it.length?`<span class="agdots">${['Planificada','Visitada','Pendiente de ruta'].map(k=>c(k)?`<i style="background:${AGCOL[k]}">${c(k)}</i>`:'').join('')}</span>`:''}</button>`}
+    h+=`<div class="agmonth">${DN.map(d=>`<span class="agmh">${d}</span>`).join('')}${cells}</div>`;
+  }
+  if(pend.length)h+=`<h4 class="agh4">Pendientes de rutas anteriores (${pend.length})</h4><p class="sm">Estaban planificados y no se visitaron. Puedes reprogramarlos, descartarlos o incluirlos en tu próximo Plan del día.</p>`+pend.sort((a,b)=>b.f.localeCompare(a.f)).slice(0,50).map(x=>agItem(x,true)).join('');
+  h+=`<div class="legend" style="margin-top:12px">${Object.entries(AGCOL).map(([k,c])=>`<span><i style="background:${c}"></i>${k}</span>`).join('')}</div>`;
+  $('agenda').innerHTML=h;
+}
+function setupAgenda(){
+  $('agenda').addEventListener('click',e=>{const v=e.target.closest('#agV [data-v]');if(v){G.vista=v.dataset.v;renderG();return}
+    const n=e.target.closest('[data-nav]');if(n){const k=+n.dataset.nav;if(k===0)G.fecha=today();else G.fecha=G.vista==='dia'?addD(G.fecha,k):G.vista==='semana'?addD(G.fecha,7*k):(()=>{const d=new Date(G.fecha.slice(0,7)+'-15T12:00');d.setMonth(d.getMonth()+k);return d.toISOString().slice(0,10)})();renderG();return}
+    const dd=e.target.closest('[data-dia]');if(dd){G.fecha=dd.dataset.dia;G.vista='dia';renderG();return}
+    const q=e.target.closest('[data-q]');if(q&&!e.target.closest('#qsr')){openQuick(+q.dataset.q);return}
+    const r=e.target.closest('[data-agr]');if(r){agReprogramar(r.dataset.agr);return}
+    const x=e.target.closest('[data-agd]');if(x){agDescartar(x.dataset.agd);return}});
+  $('agenda').addEventListener('change',e=>{if(e.target.id==='agQ'){G.quien=e.target.value;renderG()}});
+  document.addEventListener('click',e=>{const a=e.target.closest('[data-agendar]');if(a){e.preventDefault();agAgendar(+a.dataset.agendar)}
+    const r=e.target.closest('#hoy [data-agr]');if(r){agReprogramar(r.dataset.agr)}const x=e.target.closest('#hoy [data-agd]');if(x){agDescartar(x.dataset.agd)}});
+}
+/* ================= v1.5: catálogos (administración) ================= */
+const CAT_T={ESPECIALIDAD:'Especialidades',AREA:'Áreas',RESULTADO:'Resultados de visita',MOTIVO_URGENCIA:'Motivos de urgencia'};
+let CATSEL='ESPECIALIDAD',ASEC='usuarios';
+function renderCat(){const items=CAT.filter(x=>x.tipo===CATSEL).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));
+  return `<div class="dayhead"><h3>Catálogos</h3><select id="catT" class="areasel">${Object.entries(CAT_T).map(([k,t])=>`<option value="${k}" ${k===CATSEL?'selected':''}>${t}</option>`).join('')}</select></div>
+   <p class="sm">Añade valores y aparecerán al momento en los desplegables de todos los usuarios. Desactivar un valor no cambia los datos que ya lo usan.</p>
+   <div class="catadd"><input id="catNew" placeholder="Nuevo valor">${CATSEL==='RESULTADO'?'<select id="catX" class="areasel"><option value="pos">Visita realizada</option><option value="neg">Sin visita o sin interés</option></select>':''}<button type="button" class="btn" id="catAdd">Añadir</button></div>
+   <div class="catlist">${items.map((x,i)=>`<div class="catrow ${x.activo?'':'off'}"><span class="catord"><button type="button" class="reg" data-cmv="${i}" data-dir="-1" ${i?'':'disabled'}>↑</button><button type="button" class="reg" data-cmv="${i}" data-dir="1" ${i<items.length-1?'':'disabled'}>↓</button></span>
+     <span class="catv">${esc(x.valor)}${CATSEL==='RESULTADO'?` <span class="sm">· ${x.extra==='neg'?'sin visita':'visita realizada'}</span>`:''}</span>
+     <span><button type="button" class="reg" data-cren="${esc(x.valor)}">Renombrar</button> <button type="button" class="reg" data-ctog="${esc(x.valor)}">${x.activo?'Desactivar':'Activar'}</button></span></div>`).join('')||'<p class="sm">Sin valores.</p>'}</div>`}
+async function catSave(d,btn,msg){return busy(btn,async()=>{try{const j=await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,...d})});if(!j.ok){toast('No se ha podido guardar: '+j.error,true);return}
+  CAT=j.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;toast(msg||'Guardado');renderA()}catch(err){toast('Los catálogos necesitan conexión',true)}},'Guardando…')}
+function setupCat(){
+  $('admin').addEventListener('change',e=>{if(e.target.id==='catT'){CATSEL=e.target.value;renderA()}});
+  $('admin').addEventListener('click',e=>{const sec=e.target.closest('[data-asec]');if(sec){ASEC=sec.dataset.asec;renderA();return}
+    if(e.target.id==='catAdd'){const v=$('catNew').value.trim();if(!v){toast('Escribe el valor',true);return}if(CAT.some(x=>x.tipo===CATSEL&&x.valor.toLowerCase()===v.toLowerCase())){toast('Ese valor ya existe',true);return}catSave({valor:v,extra:$('catX')?$('catX').value:''},e.target,'Añadido: '+v);return}
+    const t=e.target.closest('[data-ctog]');if(t){const x=CAT.find(c=>c.tipo===CATSEL&&c.valor===t.dataset.ctog);catSave({valor:x.valor,original:x.valor,orden:x.orden,activo:!x.activo,extra:x.extra},t,x.activo?'Desactivado':'Activado');return}
+    const rn=e.target.closest('[data-cren]');if(rn){const x=CAT.find(c=>c.tipo===CATSEL&&c.valor===rn.dataset.cren);const nv=prompt('Nuevo nombre (los datos que ya usan el nombre antiguo no cambian):',x.valor);if(nv&&nv.trim()&&nv.trim()!==x.valor)catSave({valor:nv.trim(),original:x.valor,orden:x.orden,activo:x.activo,extra:x.extra},rn,'Renombrado');return}
+    const mv=e.target.closest('[data-cmv]');if(mv){const items=CAT.filter(x=>x.tipo===CATSEL).sort((a,b)=>a.orden-b.orden||a.valor.localeCompare(b.valor));const i=+mv.dataset.cmv,j=i+(+mv.dataset.dir);const a=items[i],b=items[j];if(!a||!b)return;
+      busy(mv,async()=>{try{await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:a.valor,original:a.valor,orden:j+1,activo:a.activo,extra:a.extra})});const r=await adminApi({a:'cat',d:JSON.stringify({tipo:CATSEL,valor:b.valor,original:b.valor,orden:i+1,activo:b.activo,extra:b.extra})});CAT=r.catalogos;if(window.__RAWJ)window.__RAWJ.catalogos=CAT;renderA()}catch(err){toast('Sin conexión',true)}},'…')}});
 }
 
 /* ================= Plan del día ================= */
@@ -861,15 +975,17 @@ function focusCodes(){
   r.blocks.forEach(b=>{const x=routeDocs(b);x.anchors.forEach(a=>a.docs.forEach(([d])=>set.add(d.c)));if(!b.stops)x.fill.forEach(([d])=>set.add(d.c))});
   return set;
 }
+const PENDSET=()=>new Set(P.pend!==false?pendientesRuta().map(x=>x.c):[]);
 function scoreDoc(d,wk){
   let s={A:30,B:20,C:10}[prio(d)];
-  if(d.top)s+=100; if(d.cor)s+=60;
+  if(d.top)s+=100; if(d.cor)s+=60; if(P._pend&&P._pend.has(d.c))s+=90;
   const sg=segOf(d.c);
   if(sg&&sg.prox_f===P.fecha)s+=120; else if(sg&&sg.ultima)s-=45;
   if(wk.known)s+=40;
   return s;
 }
 function buildPlan(){
+  P._pend=PENDSET();
   const di=new Date(P.fecha+'T12:00').getDay()-1;
   if(di<0||di>4)return {error:'Elige un día de lunes a viernes.'};
   const fc=focusCodes();
@@ -877,7 +993,7 @@ function buildPlan(){
   for(const d of DATA){
     if(P.excl.has(d.c))continue;
     if(fc&&!fc.has(d.c))continue;
-    if(!fc&&!areaOk(d)&&!d.top&&!d.cor)continue;
+    if(!fc&&!areaOk(d)&&!d.top&&!d.cor&&!P._pend.has(d.c))continue;
     let placed=false,reason='sin ubicación en la zona',opt=[];
     for(const c of d.cons){
       if(P.foco==='T3'&&c.ce!=='CLINICA CORACHAN')continue;
@@ -940,6 +1056,7 @@ function renderP(){
    <div><label for="pCo">Pausa para comer</label><select id="pCo"><option value="0" ${P.comer?'':'selected'}>No</option><option value="1" ${P.comer?'selected':''}>Sí</option></select></div>
    <div><label for="pCi">Comer a partir de</label><input type="time" id="pCi" value="${P.cIni}"></div>
    <div><label for="pCd">Minutos para comer</label><input type="number" id="pCd" min="15" max="120" value="${P.cDur}"></div>
+   <div class="wide"><label class="urgchk" style="font-weight:600;color:var(--ink)"><input type="checkbox" id="pPend" ${P.pend!==false?'checked':''}> Incluir con prioridad los pendientes de rutas anteriores (${pendientesRuta().length})</label></div>
    <div class="wide"><label for="pAr">Médicos a incluir</label><select id="pAr"><option value="loc" ${S.areaSel==='loc'?'selected':''}>Aparato locomotor y dolor</option><option value="all" ${S.areaSel==='all'?'selected':''}>Todas las áreas</option><option value="ap" ${S.areaSel==='ap'?'selected':''}>Atención primaria</option><option value="otras" ${S.areaSel==='otras'?'selected':''}>Otras especialidades</option></select><div class="sm">Los urgentes y los contactos de Corachan entran siempre.</div></div>
    <div class="wide"><label for="pFo">Qué visitar</label><select id="pFo">${opts.map(([v,l])=>`<option value="${v}" ${P.foco===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
    <div class="wide"><button class="btn" id="pGo">Generar ruta del día</button></div></div>`;
@@ -953,7 +1070,8 @@ function renderP(){
     const nowM=new Date().getHours()*60+new Date().getMinutes();const isToday=P.fecha===today();const nextI=isToday?pl.stops.findIndex(s=>!s.lunch&&s.end>=nowM):-1;
     const links=[];for(let i=0;i<places.length;i+=8){const part=places.slice(i,i+8);const o=i===0?'Santpedor':places[i-1];const dst=i+8>=places.length?'Santpedor':part[part.length-1];const wp=i+8>=places.length?part:part.slice(0,-1);
       links.push('https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(o)+'&destination='+encodeURIComponent(dst)+'&travelmode=driving'+(wp.length?'&waypoints='+encodeURIComponent(wp.join('|')):''))}
-    if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" class="btn sec" id="pCal">Añadir al calendario</button>${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
+    const npend=pl.stops.reduce((a,s)=>a+(s.seq?s.seq.filter(x=>P._pend&&P._pend.has(x.d.c)).length:0),0);if(npend)h+=`<p class="sm" style="color:#B45309;font-weight:600">Incluye ${npend} ${npend===1?'pendiente':'pendientes'} de rutas anteriores.</p>`;
+    if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${can('agenda')?'<button type="button" class="btn" id="pAg">Guardar en mi agenda</button>':''}<button type="button" class="btn sec" id="pCal">Añadir al calendario</button>${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
     h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida de Santpedor</li>`;
     pl.stops.forEach((s,si)=>{
       if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
@@ -970,7 +1088,7 @@ function renderP(){
   $('plan').innerHTML=h;
 }
 function runPlan(){
-  P.fecha=$('pF').value;P.salida=$('pS').value||'08:00';P.vuelta=$('pV').value||'19:00';P.ini=$('pI').value||'09:00';P.fin=$('pE').value||'18:00';P.min=+$('pM').value||15;P.cap=+$('pC').value||6;P.foco=$('pFo').value;P.comer=$('pCo').value==='1';P.cIni=$('pCi').value||'14:00';P.cDur=+$('pCd').value||45;
+  P.fecha=$('pF').value;P.salida=$('pS').value||'08:00';P.vuelta=$('pV').value||'19:00';P.ini=$('pI').value||'09:00';P.fin=$('pE').value||'18:00';P.min=+$('pM').value||15;P.cap=+$('pC').value||6;P.foco=$('pFo').value;P.pend=$('pPend').checked;P.comer=$('pCo').value==='1';P.cIni=$('pCi').value||'14:00';P.cDur=+$('pCd').value||45;
   try{localStorage.setItem('plandia',JSON.stringify({salida:P.salida,vuelta:P.vuelta,ini:P.ini,fin:P.fin,min:P.min,foco:P.foco,cap:P.cap,comer:P.comer,cIni:P.cIni,cDur:P.cDur}))}catch(e){}
   P.plan=buildPlan(); renderP();
 }
@@ -1070,7 +1188,7 @@ function setupEdit(){
 }
 
 /* ---- desplegables propios (sustituyen a datalist, que no funciona en todos los visores) ---- */
-const CB_OPTS={esp:()=>OPT.esp,muni:()=>uniq(DATA.flatMap(d=>d.cons.map(c=>c.m))),ce:()=>uniq(DATA.flatMap(d=>d.cons.map(c=>c.ce)).filter(c=>c&&c!=='CONSULTA PRIVADA'))};
+const CB_OPTS={esp:()=>uniq(catVals('ESPECIALIDAD').concat(OPT.esp)),muni:()=>uniq(DATA.flatMap(d=>d.cons.map(c=>c.m))),ce:()=>uniq(DATA.flatMap(d=>d.cons.map(c=>c.ce)).filter(c=>c&&c!=='CONSULTA PRIVADA'))};
 const CB_CACHE={};
 function cbOptions(k){return CB_CACHE[k]||(CB_CACHE[k]=CB_OPTS[k]())}
 let cbOpen=null;
