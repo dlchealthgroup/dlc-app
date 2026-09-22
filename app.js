@@ -197,8 +197,8 @@ function render(){
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
   if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
   chkBar();
-  $('foot').textContent='Datos de tu hoja de Google'+(window.__RAWJ&&window.__RAWJ.hora?' · descargados el '+new Date(window.__RAWJ.hora).toLocaleString('es',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'')+'. Los cambios que hagas se envían a la hoja.';
-  $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('empty',!$('count').textContent.trim()&&noF);
+  $('foot').textContent=datosTxt();
+  $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('noinfo',!$('count').textContent.trim()&&noF);
 }
 function renderC(){
   const f=filtered(),r=ranking(),max=r[0]?r[0].n:1;
@@ -369,7 +369,7 @@ function init(){
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
   on('vCentro','change',()=>{const d=BYCODE.get(DLGCODE),c=d.cons.find(x=>x.ce===$('vCentro').value);if(c)$('vDias').querySelectorAll('input').forEach((i,ix)=>{if(!i.value)i.value=c.dy[ix]||''})});
-  setupEdit();setupShare();render();setupDownload();setupDb();
+  setupEdit();setupShare();setupV133();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
 function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:''})}
@@ -633,7 +633,7 @@ function renderQuality(){const q=calidad();const max=Math.max(1,q.pool);
 
 /* ---------- v1.3.2: avisos, carga, área, compartir ---------- */
 let TOASTT=null;
-function toast(msg,err){const t=$('toast');t.className='toast'+(err?' err':'');t.innerHTML=(err?'⚠ ':'✓ ')+esc(msg);t.hidden=false;clearTimeout(TOASTT);TOASTT=setTimeout(()=>{t.hidden=true},2400)}
+function toast(msg,err){const t=$('toast');const info=err==='info';t.className='toast'+(err===true?' err':'')+(info?' info':'');t.innerHTML=(info?'':err?'⚠ ':'✓ ')+esc(msg);t.hidden=false;clearTimeout(TOASTT);TOASTT=setTimeout(()=>{t.hidden=true},2400)}
 async function busy(btn,fn,label){if(!btn)return fn();if(btn.classList.contains('busy'))return;const old=btn.innerHTML;btn.classList.add('busy');btn.innerHTML='<span class="spin"></span> '+esc(label||btn.textContent.trim());
   await new Promise(r=>setTimeout(r,40));try{return await fn()}finally{btn.classList.remove('busy');if(document.body.contains(btn))btn.innerHTML=old}}
 function areaOk(d){const a=S.areaSel;return a==='all'?true:a==='ap'?d.a==='Atención primaria':a==='otras'?(d.a!=='Aparato locomotor y dolor'&&d.a!=='Atención primaria'):d.a==='Aparato locomotor y dolor'}
@@ -648,6 +648,29 @@ function setupShare(){
   $('shCopy').onclick=async()=>{const t=$('shText').value;try{await navigator.clipboard.writeText(t);toast('Texto copiado')}catch(e){$('shText').select();document.execCommand&&document.execCommand('copy');toast('Texto copiado')}};
   $('shMail').onclick=()=>{const to=$('shTo').value.trim();localStorage.setItem('dlc_shto',to);location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent('DLC · Resumen de la semana')+'&body='+encodeURIComponent($('shText').value)};
   $('shWa').onclick=()=>{window.open('https://wa.me/?text='+encodeURIComponent($('shText').value),'_blank','noopener')};
+}
+
+/* ---------- v1.3.3: versión, actualizaciones, cerrar ventanas ---------- */
+function datosTxt(){const h=window.__RAWJ&&window.__RAWJ.hora;return h?'Datos actualizados el '+new Date(h).toLocaleString('es',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):''}
+function urgSeg(){const on=$('eUrg').checked;$('eUrgSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.u==='1')===on)));$('eUrgM').disabled=!on;if(!on)$('eUrgM').placeholder='Solo si es urgente';else $('eUrgM').placeholder='Motivo de la urgencia (opcional)'}
+async function checkVersion(manual){
+  if(!navigator.onLine)return;
+  try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();
+    if(j.v&&j.v!==window.__APPVER){$('updBar').hidden=false;$('updBar').innerHTML=`<span>Hay una versión nueva de DLC OS (${esc(j.v)}). Tienes la ${esc(window.__APPVER)}.</span><button type="button" id="updGo">Actualizar ahora</button>`;$('updGo').onclick=e=>busy(e.target,updateNow,'Actualizando…')}
+    else if(manual)toast('Tienes la última versión ('+window.__APPVER+')');}catch(e){}
+}
+async function updateNow(){
+  if(obxGet().length){await flush();if(obxGet().length&&!confirm('Hay cambios sin enviar. Se conservarán en este dispositivo. ¿Actualizar igualmente?'))return}
+  try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.update()}catch(e){}
+  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}catch(e){}
+  location.replace(location.pathname+'?v='+Date.now());
+}
+function setupV133(){
+  document.querySelector('.logo').addEventListener('click',()=>{toast(`DLC OS · versión ${window.__APPVER}${datosTxt()?' · '+datosTxt().toLowerCase():''}`,'info');checkVersion(false)});
+  $('eUrgSeg').addEventListener('click',e=>{const b=e.target.closest('[data-u]');if(!b)return;$('eUrg').checked=b.dataset.u==='1';urgSeg();if($('eUrg').checked)$('eUrgM').focus()});
+  ['edlg','dlg','qdlg','shdlg','cfgDlg'].forEach(id=>{const dl=$(id);if(!dl)return;dl.addEventListener('mousedown',e=>{dl._down=e.target===dl});dl.addEventListener('click',e=>{if(e.target===dl&&dl._down)dl.close()})});
+  checkVersion(false);setInterval(()=>checkVersion(false),30*60*1000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion(false)});
 }
 
 /* ================= Plan del día ================= */
@@ -865,7 +888,7 @@ function openEdit(code,nd){
   if($('qdlg').open)$('qdlg').close();
   const d=nd||BYCODE.get(code); EDCODE=code; NEWD=nd||null; const f=FICHA.get(code)||{};
   $('eNewRow').hidden=!nd; $('eName').value=''; $('eArea').value=d.a||'Aparato locomotor y dolor';
-  $('eUrg').checked=!!d.top; $('eUrgM').value=d.top&&d.top!=='Marcado desde la app'?d.top:'';
+  $('eUrg').checked=!!d.top; $('eUrgM').value=d.top&&d.top!=='Marcado desde la app'?d.top:''; urgSeg();
   $('eTitle').textContent=nd?'Nuevo médico':d.n; $('eSub').textContent=nd?'Se añadirá a tu hoja de Google':(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
   $('eEsp').value=d.e||''; $('eTel').value=d.tel||''; $('eCont').value=f.contacto||segOf(code)?.contacto||''; $('eNota').value=f.nota||'';
   $('eCons').innerHTML=d.cons.map((c,i)=>consRow(c,i)).join('');
@@ -912,7 +935,9 @@ function setupEdit(){
   setupCombos();
   $('eAdd').onclick=()=>{const n=$('eCons').querySelectorAll('fieldset').length;$('eCons').insertAdjacentHTML('beforeend',consRow({ce:'',m:'BARCELONA',d:'',cp:'',tel:'',dy:['','','','','']},n))};
   $('eCons').addEventListener('click',e=>{const q=e.target.closest('[data-q]');if(q){const [j,t]=q.dataset.q.split('|');const inp=q.closest('fieldset').querySelector(`[data-dy="${j}"]`);inp.value=inp.value&&!inp.value.includes(t)?inp.value+'; '+t:t;inp.focus();return}
-    const r=e.target.closest('[data-rm]');if(r)r.closest('fieldset').remove()});
+    const r=e.target.closest('[data-rm]');if(r){const lg=r.parentElement;r.hidden=true;const q=document.createElement('span');q.className='rmq';q.innerHTML='¿Quitar esta consulta? <button type="button" class="yes">Sí, quitar</button><button type="button" class="no">No</button>';lg.appendChild(q);return}
+    const y=e.target.closest('.rmq .yes');if(y){y.closest('fieldset').remove();toast('Consulta quitada (se aplica al guardar la ficha)');return}
+    const n=e.target.closest('.rmq .no');if(n){const lg=n.closest('legend');lg.querySelector('[data-rm]').hidden=false;n.closest('.rmq').remove()}});
   $('eCancel').onclick=()=>$('edlg').close(); $('eForm').onsubmit=e=>{e.preventDefault();saveEdit()};
   document.addEventListener('click',e=>{const b=e.target.closest('[data-edit]');if(b){e.preventDefault();openEdit(+b.dataset.edit)}});
 }
@@ -1031,7 +1056,7 @@ async function setupDb(){
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
   $('syncBtn').onclick=e=>busy(e.target,async()=>{await flush();await checkUpdates();toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
-  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').textContent=`Versión ${window.__APPVER||''} · datos de ${window.__RAWJ&&window.__RAWJ.hora?new Date(window.__RAWJ.hora).toLocaleString('es'):'—'}`;$('cfgDlg').showModal()};
+  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').innerHTML=`DLC OS · versión ${esc(window.__APPVER||'')} · ${esc(datosTxt()||'sin datos')} · <a href="#" id="cfgVer">Buscar actualizaciones</a>`;$('cfgVer').onclick=ev=>{ev.preventDefault();checkVersion(true)};$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);$('cfgDlg').close();render()};
   $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
   $('cfgSave').onclick=()=>{const u=$('cfgUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)){$('cfgMsg').textContent='La dirección debe empezar por https://script.google.com/macros/s/ y acabar en /exec.';return}localStorage.setItem('dlc_cfg',JSON.stringify({url:u,t:$('cfgT').value.trim()}));location.reload()};

@@ -255,7 +255,7 @@ input::-webkit-date-and-time-value{text-align:left}
 .dist{font-weight:700;color:var(--navy)}
 @media (max-width:760px){
   .deskonly{display:none!important}
-  .bar.empty{display:none}
+  .bar.noinfo{display:none}
   .resb{grid-template-columns:1fr 1fr}
   .resb button{padding:12px 8px}
   .urgrow{grid-template-columns:1fr}
@@ -285,7 +285,7 @@ input::-webkit-date-and-time-value{text-align:left}
 .topbar{margin:0 0 12px}
 .topbar .count{margin-left:auto}
 #chips:empty{display:none}
-.bar.topbar.empty{margin-bottom:12px}
+.bar.topbar.noinfo{margin-bottom:12px}
 .fi input[type=checkbox],.fi input[type=radio]{width:auto!important;min-height:0}
 dialog{overflow-x:hidden}
 dialog *{max-width:100%}
@@ -310,7 +310,7 @@ input.sw:checked{background:#D97706}input.sw:checked::after{left:21px}
 .stats>div span{display:block}
 /* toast y carga */
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:100;background:#1F6F4A;color:#fff;border-radius:999px;padding:10px 18px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;gap:8px;align-items:center;animation:tin .18s ease-out}
-.toast.err{background:#9B2C2C}
+.toast.err{background:#9B2C2C}.toast.info{background:var(--navy)}
 @keyframes tin{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
 .spin{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(154,188,215,.45);border-top-color:#2B6CB0;border-radius:50%;animation:rot .7s linear infinite;vertical-align:-3px}
 .btn .spin,.pri2 .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff}
@@ -328,6 +328,19 @@ input.sw:checked{background:#D97706}input.sw:checked::after{left:21px}
   .toast{bottom:calc(90px + env(safe-area-inset-bottom,0px))}
   #shText{font-size:14px!important}
 }
+
+/* ---------- v1.3.3 ---------- */
+.seg{display:inline-flex;border:1px solid #E2C997;border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;background:#fff;padding:8px 14px;font-weight:700;color:#8A5A00;cursor:pointer;font-size:14px}
+.seg button[aria-pressed=true]{background:#D97706;color:#fff}
+.seg button[data-u="0"][aria-pressed=true]{background:#64748B}
+.urgrow #eUrgM[disabled]{opacity:.45}
+.rmq{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;font-weight:700;color:#8A2A2A}
+.rmq button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.rmq button.yes{background:#9B2C2C;color:#fff;border-color:#9B2C2C}
+.logo{cursor:pointer}
+.upd{background:var(--navy);color:#fff;border-radius:10px;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-weight:600}
+.upd button{background:#fff;color:var(--navy);border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -338,6 +351,7 @@ input.sw:checked{background:#D97706}input.sw:checked::after{left:21px}
     <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
   </header>
   <div class="qs"><input id="qs" type="search" placeholder="Buscar médico, centro o municipio" autocomplete="off" spellcheck="false" enterkeyhint="search"><div class="qsr" id="qsr" hidden></div></div>
+  <div class="upd" id="updBar" hidden></div>
   <div class="chk" id="chkBar" hidden></div>
   <div class="warn" id="newData" hidden style="margin:0 0 12px">Hay datos nuevos en la hoja de Google. <button type="button" class="reg" id="newDataBtn">Actualizar ahora</button></div>
 
@@ -436,7 +450,7 @@ input.sw:checked{background:#D97706}input.sw:checked::after{left:21px}
         <h3 id="eTitle"></h3><div class="sm" id="eSub"></div>
         <div id="eNewRow" hidden><label for="eName">Apellidos, Nombre</label><input id="eName" placeholder="p. ej. GARCIA LOPEZ, ANA" autocapitalize="characters">
         <label for="eArea">Área</label><select id="eArea"><option>Aparato locomotor y dolor</option><option>Atención primaria</option><option>Otras especialidades</option></select></div>
-        <div class="urgrow"><label class="urgchk" for="eUrg"><input type="checkbox" id="eUrg" class="sw"><span>★ Marcar como urgente de visitar</span></label><input id="eUrgM" placeholder="Motivo de la urgencia (opcional)"></div>
+        <div class="urgrow"><div><div class="sm" style="margin-bottom:4px">Prioridad de visita</div><div class="seg" id="eUrgSeg"><button type="button" data-u="0">Normal</button><button type="button" data-u="1">★ Urgente</button></div><input type="checkbox" id="eUrg" hidden></div><input id="eUrgM" placeholder="Motivo de la urgencia (opcional)"></div>
         <div class="grid2"><div><label for="eEsp">Especialidad</label><div class="cbw"><input id="eEsp" data-cb="esp" autocomplete="off" placeholder="Escribe o elige"><button type="button" class="cbt" tabindex="-1" aria-label="Ver lista">▾</button></div></div><div><label for="eTel">Teléfono</label><input id="eTel" inputmode="tel"></div></div>
         <label for="eCont">Contacto (secretaría, email…)</label><input id="eCont">
         <div id="eCons"></div>
@@ -484,7 +498,7 @@ input.sw:checked{background:#D97706}input.sw:checked::after{left:21px}
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.3.2';
+window.__APPVER='1.3.3';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -519,7 +533,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.3.2'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.3.3'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
