@@ -6,8 +6,8 @@
 <title>DLC OS</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#123A63">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="dlc-icon-192.png">
+<link rel="apple-touch-icon" href="dlc-apple-touch-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -262,9 +262,11 @@ input::-webkit-date-and-time-value{text-align:left}
 }
 
 /* ---------- v1.3 ---------- */
+[hidden]{display:none!important}
+#sub{display:none}
 .brand{display:flex;gap:12px;align-items:center}
 .logo{height:44px;width:auto}
-.mod{font:inherit;font-size:14px;font-weight:600;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:var(--panel);vertical-align:middle;margin-left:6px}
+.mod{font:inherit;font-size:15px;margin-left:0!important;font-weight:600;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:var(--panel);vertical-align:middle;margin-left:6px}
 #map{height:min(70vh,640px);width:100%;background:var(--bg)}
 #mapWrap .legend{flex-wrap:wrap}
 .estb{display:inline-block;border-radius:999px;font-size:11.5px;font-weight:700;padding:2px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
@@ -284,7 +286,7 @@ input::-webkit-date-and-time-value{text-align:left}
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><img src="logo.png" alt="DLC Health Group" class="logo"><div><h1>DLC OS <select id="modSel" class="mod" aria-label="Módulo"><option value="rutas" selected>Rutas y médicos</option><option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option></select></h1><p id="sub"></p></div></div>
+    <div class="brand"><img src="logo.png" alt="DLC Health Group" class="logo"><div><h1><select id="modSel" class="mod" aria-label="Módulo"><option value="rutas" selected>Rutas y médicos</option><option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option></select></h1><p id="sub"></p></div></div>
     <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
   </header>
   <div class="qs"><input id="qs" type="search" placeholder="Buscar médico, centro o municipio" autocomplete="off" spellcheck="false" enterkeyhint="search"><div class="qsr" id="qsr" hidden></div></div>
@@ -372,6 +374,7 @@ input::-webkit-date-and-time-value{text-align:left}
       <section class="panel" id="viewS" hidden>
         <div class="stats" id="stats"></div>
         <div class="funnel" id="funnel"></div>
+        <div class="funnel" id="quality"></div>
         <div class="opts" style="justify-content:flex-end"><button class="dl" id="shareBtn">Compartir resumen de la semana</button><button class="dl deskonly" id="dlSeg" hidden>Descargar seguimiento (CSV)</button></div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Última visita</th><th>Resultado</th><th>Horario captado</th><th>Contacto</th><th>Próxima acción</th></tr></thead>
@@ -427,7 +430,7 @@ input::-webkit-date-and-time-value{text-align:left}
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.3.0';
+window.__APPVER='1.3.1';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -462,7 +465,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.3.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.3.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
