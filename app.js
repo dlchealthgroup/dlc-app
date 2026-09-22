@@ -15,7 +15,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,soloLoc:true,picks:new Set(),top:false,corDay:null};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,soloLoc:true,picks:new Set(),top:false,corDay:null,near:null};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -48,7 +48,10 @@ function docMatch(d){
   if(S.seg==='sin'&&s&&s.ultima)return false; if(S.seg==='vis'&&!(s&&s.ultima))return false; if(S.seg==='prox'&&!(s&&s.prox))return false;
   return true;
 }
-function filtered(){const out=[];for(const d of DATA){if(!docMatch(d))continue;const c=d.cons.find(c=>consMatch(c,false));if(c)out.push([d,c])}return out}
+function filtered(){const out=[];for(const d of DATA){if(!docMatch(d))continue;const c=d.cons.find(c=>consMatch(c,false));if(c)out.push([d,c])}
+  if(S.near){const me=S.near;const res=[];for(const [d] of out){let best=null,bc=null;for(const c of d.cons){const xy=xyOf(c);if(!xy)continue;const k=hav(me,xy);if(best==null||k<best){best=k;bc=c}}d._km=best;if(best!=null&&best<=25)res.push([d,bc])}
+    res.sort((a,b)=>a[0]._km-b[0]._km);return res}
+  DATA.forEach(d=>{if(d._km!=null)d._km=null});return out}
 function ranking(){
   const m=new Map();
   for(const d of DATA){
@@ -67,6 +70,7 @@ function ranking(){
 /* ---------- routes ---------- */
 const BCN='BARCELONA';
 const TOPROUTES=[
+ {id:'TU',top:true,dyn:true,name:'Urgentes · todos los pendientes',blocks:[{t:'Por zona',dyn:true}]},
  {id:'T1',top:true,name:'Urgente 1 · Zona alta (martes)',blocks:[
    {t:'Mañana',h:'9:30-13:30',zones:['d:Les Corts','d:Sarrià-Sant Gervasi'],stops:[
      {ce:'HOSPITAL UNIVERSITARI DEXEUS',m:BCN,label:'Dexeus · Unidad del dolor (1ª planta) e ICATME',codes:[1698,90001,841,3274,3538,3931]},
@@ -114,6 +118,13 @@ function corSlots(d){
 }
 function corBestDay(){const n=[0,0,0,0,0];CORD.forEach(d=>{const ds=new Set(corSlots(d).map(x=>x.day));ds.forEach(i=>n[i]++)});return n.indexOf(Math.max(...n))}
 function routeDocs(b){
+  if(b.dyn){ // urgentes pendientes, agrupados por centro y zona
+    const m=new Map();
+    DATA.forEach(d=>{if(!d.top||(segOf(d.c)&&segOf(d.c).ultima))return;const c=d.cons.find(x=>x.d||(x.ce&&x.ce!=='CONSULTA PRIVADA'))||d.cons[0];
+      const k=(c.ce||'Sin centro')+'|'+c.m;let a=m.get(k);if(!a){a={ce:c.ce||'Sin centro',m:c.m,addr:c.d||'',z:(c.m===BCN?'0'+(c.di||'zzz'):'1'+c.m),docs:[]};m.set(k,a)}if(!a.addr&&c.d)a.addr=c.d;a.docs.push([d,c])});
+    const anchors=[...m.values()].sort((a,b)=>a.z.localeCompare(b.z)||b.docs.length-a.docs.length);
+    return {anchors,fill:[],same:true};
+  }
   if(b.cor){
     if(S.corDay==null)S.corDay=corBestDay();
     const docs=[];CORD.forEach(d=>{const sl=corSlots(d).find(x=>x.day===S.corDay&&x.f===b.cor);if(sl)docs.push([Object.assign({},d,{slot:sl}),d.cons.find(c=>c.ce==='CLINICA CORACHAN')||d.cons[0]])});
@@ -123,7 +134,7 @@ function routeDocs(b){
       fillLabel:'Contactos sin horario conocido',fillSub:'Pregunta en recepción qué días pasan consulta'};
   }
   if(b.stops){
-    const anchors=b.stops.map(s=>{const docs=s.codes.map(c=>BYCODE.get(c)).filter(Boolean).map(d=>[d,d.cons.find(c=>c.ce===s.ce)||d.cons[0]]);
+    const anchors=b.stops.map(s=>{const docs=s.codes.map(c=>BYCODE.get(c)).filter(d=>d&&d.top).map(d=>[d,d.cons.find(c=>c.ce===s.ce)||d.cons[0]]);
       const addr=(docs.find(([d,c])=>c.d&&c.ce===s.ce)||[])[1]?.d||'';return {ce:s.label||s.ce,m:s.m,addr:s.q?'':addr,q:s.q,docs}});
     const inA=new Set(anchors.flatMap(a=>a.docs.map(([d])=>d.c)));const fill=[];
     for(const d of DATA){if(S.soloLoc&&d.a!=='Aparato locomotor y dolor')continue;if(inA.has(d.c))continue;const ces=new Set(b.stops.map(s=>s.ce));const c=d.cons.find(c=>ces.has(c.ce)&&c.m===BCN);if(c)fill.push([d,c])}
@@ -145,6 +156,7 @@ function routeDocs(b){
 function sortDocs([a],[b]){const va=segOf(a.c)?.ultima?1:0,vb=segOf(b.c)?.ultima?1:0;return va-vb||PRIO_ORD[prio(a)]-PRIO_ORD[prio(b)]||a.n.localeCompare(b.n,'es')}
 function routeStats(r){
   const codes=new Set();
+  if(r.dyn){const all=DATA.filter(d=>d.top);const v=all.filter(d=>segOf(d.c)&&segOf(d.c).ultima).length;return {n:all.length,v,last:''};}
   if(r.cor){CORD.forEach(d=>codes.add(d.c));let v=0,last='';codes.forEach(c=>{const s=segOf(c);if(s&&s.ultima){v++;if(s.ultima>last)last=s.ultima}});return {n:codes.size,v,last};} r.blocks.forEach(b=>{const x=routeDocs(b);x.anchors.forEach(a=>a.docs.forEach(([d])=>codes.add(d.c)));});
   let v=0,last='';codes.forEach(c=>{const s=segOf(c);if(s&&s.ultima){v++;if(s.ultima>last)last=s.ultima}});
   return {n:codes.size,v,last};
@@ -167,6 +179,7 @@ function renderFilters(){
   if(S.area)add('area',S.area);if(S.esp)add('esp',S.esp);if(S.dias.length)add('dias','Pasa consulta: '+S.dias.map(d=>DAYN[d]).join(' o '));
   if(S.cal.length)add('cal',S.cal.length===1?S.cal[0]:S.cal.length+' calidades');if(S.tipo)add('tipo',S.tipo);if(S.texto)add('texto','Nombre: '+S.texto);
   if(S.top)add('top','Solo urgentes');
+  if(S.near)add('near','Cerca de mí');
   if(S.seg)add('seg',{sin:'Sin visitar',vis:'Visitados',prox:'Con próxima acción'}[S.seg]);
   $('chips').innerHTML=S.tab==='C'||S.tab==='M'?chips.join(''):'';
 }
@@ -179,7 +192,8 @@ function render(){
   const nf=[S.prov,S.muni,S.grupo,S.centro,S.area,S.esp,S.tipo,S.texto,S.seg].filter(Boolean).length+(S.dias.length?1:0)+(S.cal.length?1:0)+(S.top?1:0);$('fBtn').textContent=nf?`Filtros · ${nf}`:'Filtros';$('fBtn').classList.toggle('on',!!nf);
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
   if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
-  $('foot').textContent='Datos del listado limpio del 21/09/2026. Los días de consulta que registres en las visitas se suman a los que ya había.';
+  $('foot').textContent='Datos de tu hoja de Google'+(window.__RAWJ&&window.__RAWJ.hora?' · descargados el '+new Date(window.__RAWJ.hora).toLocaleString('es',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'')+'. Los cambios que hagas se envían a la hoja.';
+  $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('empty',!$('count').textContent.trim()&&noF);
 }
 function renderC(){
   const f=filtered(),r=ranking(),max=r[0]?r[0].n:1;
@@ -195,7 +209,7 @@ function dayBadges(dy){return `<div class="dy">${DAYS.map((k,i)=>`<span class="$
 function renderM(){
   const f=filtered();
   $('count').innerHTML=`<b>${f.length.toLocaleString('es')}</b> médicos`;
-  $('mNote').textContent=`${f.filter(([d,c])=>daysFor(d,c).some(Boolean)).length} con días de consulta conocidos · ordenados por provincia, municipio y centro`;
+  $('mNote').textContent=S.near?'Ordenados por distancia a tu posición (aproximada, hasta 25 km)':`${f.filter(([d,c])=>daysFor(d,c).some(Boolean)).length} con días de consulta conocidos · ordenados por provincia, municipio y centro`;
   $('tbody').innerHTML=f.slice(0,S.limit).map(([d,c])=>{
     const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';
     let h=`<tr class="row" data-c="${d.c}"><td><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div><div class="sm">${esc(d.e||'Sin especialidad')}${d.t==='Centro'?' · centro':''}${d.top?' · '+esc(d.top):''}</div></td><td>${esc(c.ce||'Sin centro')}<div class="sm">${c.g&&c.g!==c.ce?esc(c.g):''}</div></td><td>${esc(c.m||'')}</td><td>${esc(c.d||'')}</td><td style="white-space:nowrap">${esc(c.tel||'')}</td><td>${dayBadges(daysFor(d,c))}</td><td><span class="q ${qc}">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></td><td>${visitCell(d)}</td></tr>`;
@@ -218,7 +232,7 @@ function renderR(){
   if(!S.route)S.route=sug.r.id;
   const cardFn=x=>`<button class="rcard${x.r.top?' topr':''}" data-r="${x.r.id}" aria-pressed="${S.route===x.r.id}"><h3>${esc(x.r.name)}${x===sug?'<span class="sug">siguiente</span>':''}</h3>
     <div class="sm">${x.n} médicos ${x.r.top?'urgentes':'en sus centros'} · ${x.v} visitados${x.last?' · última '+fmtDate(x.last):''}</div><div class="prog"><span style="width:${x.n?x.v/x.n*100:0}%"></span></div></button>`;
-  $('routes').innerHTML=`<div class="rsec urg"><h3>Rutas urgentes</h3><p class="sm">Lista top y contactos de Corachan. Van antes que el ciclo hasta completarlas.</p></div>`+stats.filter(x=>x.r.top).map(cardFn).join('')+`<div class="rsec"><h3>Ciclo de rutas</h3><p class="sm">6 días que se repiten cada dos semanas (3 días por semana).</p></div>`+stats.filter(x=>!x.r.top).map(cardFn).join('');
+  $('routes').innerHTML=`<div class="rsec urg"><h3>Rutas urgentes</h3><p class="sm">Urgentes (marcados en la app o en la lista) y contactos de Corachan. Van antes que el ciclo hasta completarlas.</p></div>`+stats.filter(x=>x.r.top).map(cardFn).join('')+`<div class="rsec"><h3>Ciclo de rutas</h3><p class="sm">6 días que se repiten cada dos semanas (3 días por semana).</p></div>`+stats.filter(x=>!x.r.top).map(cardFn).join('');
   const r=ROUTES.find(x=>x.id===S.route); const blocks=r.blocks.map(b=>({b,...routeDocs(b)}));
   const stops=[];
   blocks.forEach(x=>{x.anchors.forEach(a=>stops.push(a.q||place(a.ce,a.m,a.addr)));x.fill.forEach(([d,c])=>{if(S.picks.has(d.c))stops.push(place(c.ce,c.m,c.d))});});
@@ -264,9 +278,11 @@ function renderS(){
 /* ---------- visit dialog ---------- */
 let DLGCODE=null;
 function openDlg(code,ce){
+  if($('qdlg').open)$('qdlg').close();
   const d=BYCODE.get(code),s=segOf(code)||{};DLGCODE=code;
   $('dlgTitle').textContent=d.n;$('dlgSub').textContent=d.e+(DB?'':' · Registro no disponible fuera de Claude');
-  $('vFecha').value=today();fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';
+  $('vFecha').value=today();fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';$('vMu').value='';$('vCal').checked=false;
+  $('vResB').innerHTML=RESULTS.map(r=>`<button type="button" data-res="${esc(r)}" aria-pressed="false">${esc(r)}</button>`).join('');
   const ces=uniq(d.cons.map(c=>c.ce).concat(ce||[]));$('vCentro').innerHTML=ces.map(x=>`<option>${esc(x)}</option>`).join('');$('vCentro').value=ce||s.ce||ces[0]||'';
   const c=d.cons.find(x=>x.ce===$('vCentro').value)||d.cons[0];
   $('vDias').innerHTML=DAYS.map((k,i)=>`<input aria-label="${DAYN[k]}" placeholder="${DAYN[k][0].toUpperCase()+DAYN[k].slice(1)}: p. ej. Mañana 9-13" data-k="${k}" value="${esc((s.horario&&s.horario[k])||(c&&c.dy[i])||'')}">`).join('');
@@ -279,10 +295,13 @@ async function saveDlg(){
   if(!res){$('dlgMsg').textContent='Elige un resultado para guardar la visita.';return false}
   const horario={};$('vDias').querySelectorAll('input').forEach(i=>{if(i.value.trim())horario[i.dataset.k]=i.value.trim()});
   const f=$('vFecha').value||today(),ce=$('vCentro').value;
-  const visitas=(prev.visitas||[]).concat([{f,res,ce,nota:$('vNota').value.trim()}]).slice(-20);
+  const mu=Math.max(0,parseInt($('vMu').value,10)||0);
+  const visitas=(prev.visitas||[]).concat([{f,res,ce,nota:$('vNota').value.trim(),mu}]).slice(-20);
   const doc={c:d.c,n:d.n,ce,ultima:(prev.ultima&&prev.ultima>f)?prev.ultima:f,res:(prev.ultima&&prev.ultima>f)?prev.res:res,horario,contacto:$('vContacto').value.trim(),prox:$('vProx').value.trim(),prox_f:$('vProxF').value||'',visitas};
   $('dlgSave').disabled=true;$('dlgMsg').textContent='Guardando…';
-  try{await DB.collection('seguimiento').doc(String(d.c)).set(doc);SEG.set(d.c,doc);if(Object.keys(horario).length)await saveScheduleFromVisit(d.c,ce,horario);$('dlg').close();afterEdit();}
+  try{await DB.collection('seguimiento').doc(String(d.c)).set(doc);SEG.set(d.c,doc);if(Object.keys(horario).length)await saveScheduleFromVisit(d.c,ce,horario);$('dlg').close();
+    if($('vCal').checked&&doc.prox_f)icsDownload(`${doc.prox||'Seguimiento'} · ${d.n}`,doc.prox_f,'09:00','09:30',`${d.e||''}\n${(d.cons.find(x=>x.ce===ce)||d.cons[0]).d||''}`,[ce,(d.cons.find(x=>x.ce===ce)||d.cons[0]).m].filter(Boolean).join(', '));
+    afterEdit();}
   catch(e){$('dlgMsg').textContent=e.code==='quota_exceeded'?'No caben más registros en el explorador. Pídeme que archive las visitas antiguas.':'No se ha podido guardar ('+(e.code||'error')+'). Inténtalo de nuevo.';$('dlgSave').disabled=false}
   return false;
 }
@@ -304,12 +323,23 @@ function init(){
   document.querySelectorAll('input[name=agr]').forEach(r=>r.addEventListener('change',e=>{S.agr=e.target.value;reset0()}));
   on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('soloLoc','change',e=>{S.soloLoc=e.target.checked;render()});
   on('reset','click',()=>{clearFilters();reset0()});
-  on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:'');if(k==='prov')S.muni='';reset0()});
+  on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
   for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']])on(id,'click',()=>{S.tab=k;render()});
   on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
-  on('hoy','click',e=>{const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
+  on('nearBtn','click',nearMe);on('newBtn','click',openNew);on('shareBtn','click',shareWeek);
+  let qt;on('qs','input',e=>{clearTimeout(qt);qt=setTimeout(()=>quickSearch(e.target.value),150)});
+  on('qs','focus',e=>quickSearch(e.target.value));
+  document.addEventListener('click',e=>{if(!e.target.closest('.qs'))$('qsr').hidden=true});
+  on('qsr','click',e=>{const b=e.target.closest('[data-q]');if(!b)return;$('qsr').hidden=true;$('qs').blur();openQuick(+b.dataset.q)});
+  on('qClose','click',()=>$('qdlg').close());
+  on('vResB','click',e=>{const b=e.target.closest('[data-res]');if(!b)return;$('vRes').value=b.dataset.res;$('vResB').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+  document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();const d=BYCODE.get(+u.dataset.urg);if(!d)return;
+      if(d.top){if(confirm('¿Quitar a '+d.n+' de urgentes?'))setUrgent(d.c,false)}else{const m=prompt('Motivo para marcar como urgente (opcional):','');if(m!==null)setUrgent(d.c,true,m.trim())}return}
+    const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
+  on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe();else if(k==='new')openNew();else shareWeek();return}
+    const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
     const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})}});
   try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
   on('more','click',()=>{S.limit+=100;render()});on('rankMore','click',()=>{S.rlimit+=40;render()});
@@ -318,7 +348,7 @@ function init(){
   document.addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b){e.preventDefault();openDlg(+b.dataset.reg,b.dataset.ce||'')}});
   on('routes','click',e=>{const b=e.target.closest('.rcard');if(b){S.route=b.dataset.r;render()}});
   on('day','click',e=>{const b=e.target.closest('[data-cd]');if(b){S.corDay=+b.dataset.cd;render()}});
-  on('plan','click',e=>{if(e.target.id==='pGo'){runPlan();return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
+  on('plan','click',e=>{if(e.target.id==='pCal'){planToCalendar();return}if(e.target.id==='pGo'){runPlan();return}if(e.target.id==='pClr'){P.excl.clear();runPlan();return}const x=e.target.closest('[data-ex]');if(x){P.excl.add(+x.dataset.ex);runPlan()}});
   on('day','change',e=>{const i=e.target.closest('[data-pick]');if(!i)return;const c=+i.dataset.pick;i.checked?S.picks.add(c):S.picks.delete(c);render()});
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
@@ -431,10 +461,10 @@ function telHref(t){const d=String(t||'').split(/[\/;,]| o /)[0].replace(/[^\d+]
 function mapsHref(c){const q=c.d?`${c.d}, ${c.m}`:(c.ce&&c.ce!=='CONSULTA PRIVADA'?`${c.ce}, ${c.m}`:'');if(!q)return '';const e=encodeURIComponent(q);
   return (localStorage.getItem('dlc_maps')==='apple')?`https://maps.apple.com/?daddr=${e}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=driving`}
 function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
-  return `<div class="acts2">${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}<button type="button" class="act" data-edit="${d.c}">Editar ficha</button><button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>${extra||''}</div>`}
+  return `<div class="acts2"><button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}<button type="button" class="act" data-edit="${d.c}">Editar ficha</button><button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>${extra||''}</div>`}
 function cardHTML(d,c){const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
   return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div>
-  <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}</div>
+  <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}${d._km!=null?` · <span class="dist">a ${d._km<1?'menos de 1':d._km.toFixed(1).replace('.',',')} km</span>`:''}</div>
   <div style="margin-top:6px">${esc(c.ce||'Sin centro')}${c.g&&c.g!==c.ce?` <span class="sm">· ${esc(c.g)}</span>`:''}</div>
   <div class="sm">${esc([c.d,c.m].filter(Boolean).join(' · '))}${d.cons.length>1?` · ${d.cons.length} consultas`:''}</div>
   <div class="row2">${dayBadges(dy)}<span class="q ${qc}" style="font-size:12.5px">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></div>
@@ -453,11 +483,12 @@ function renderH(){
   const pend=(typeof obxGet==='function')?obxGet().length:0;
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
-  let h=`<div class="kpis"><div class="kpi"><b>${weekV}</b><span>visitas esta semana</span></div><div class="kpi"><b>${due.filter(s=>s.prox_f<=td).length}</b><span>acciones para hoy o atrasadas</span></div><div class="kpi"><b>${urg.length}</b><span>urgentes sin visitar</span></div><div class="kpi"><b>${pend}</b><span>${pend===1?'cambio pendiente':'cambios pendientes'} de enviar</span></div></div>`;
+  const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
+  let h=`<div class="acts2" style="margin:0 0 14px"><button type="button" class="act" data-h="near">Cerca de mí</button><button type="button" class="act" data-h="new">+ Nuevo médico</button><button type="button" class="act" data-h="share">Compartir semana</button></div><div class="kpis"><div class="kpi"><b>${weekV}</b><span>visitas esta semana</span></div><div class="kpi"><b>${weekMu}</b><span>muestras esta semana</span></div><div class="kpi"><b>${due.filter(s=>s.prox_f<=td).length}</b><span>acciones para hoy o atrasadas</span></div><div class="kpi"><b>${urg.length}</b><span>urgentes sin visitar</span></div><div class="kpi"><b>${pend}</b><span>${pend===1?'cambio pendiente':'cambios pendientes'} de enviar</span></div></div>`;
   h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
      <div class="acts2"><button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button><button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button></div></div></div>`;
   h+=`<div class="hsec"><h3>Próximas acciones (7 días)</h3>${due.length?due.slice(0,30).map(s=>{const d=BYCODE.get(s.c);const c=d.cons.find(x=>x.ce===s.ce)||d.cons[0];
-     return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm"><b style="color:${s.prox_f<td?'var(--warn)':'var(--navy)'}">${fmtDate(s.prox_f)}</b> · ${esc(s.prox||'Seguimiento')} · última visita ${fmtDate(s.ultima)} (${esc(s.res||'')})</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">No hay acciones con fecha en los próximos 7 días.</p>'}</div>`;
+     return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm"><b style="color:${s.prox_f<td?'var(--warn)':'var(--navy)'}">${fmtDate(s.prox_f)}</b> · ${esc(s.prox||'Seguimiento')} · última visita ${fmtDate(s.ultima)} (${esc(s.res||'')})</div>${actBtns(d,c,`<button type="button" class="act" data-cal="${d.c}">Al calendario</button>`)}</div>`}).join(''):'<p class="sm">No hay acciones con fecha en los próximos 7 días.</p>'}</div>`;
   h+=`<div class="hsec"><h3>Urgentes sin visitar</h3>${urg.length?urg.map(d=>{const c=d.cons[0];return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm">${esc(d.top)} · ${esc(c.ce||'')}${d.vn?' · '+esc(d.vn):''}</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">Todos los urgentes están visitados.</p>'}</div>`;
   $('hoy').innerHTML=h;
 }
@@ -475,6 +506,47 @@ async function downloadXlsx(rows,name,btn){
   }catch(e){alert('No se ha podido crear el Excel: '+e.message+'. Hace falta conexión la primera vez.')}
   finally{if(btn){btn.textContent=old;btn.disabled=false}}
 }
+
+/* ---------- v1.2: búsqueda, ficha rápida, cerca de mí, resumen, calendario ---------- */
+function openQuick(code){const d=BYCODE.get(code);if(!d)return;const s=segOf(code);
+  $('qbody').innerHTML=cardHTML(d,d.cons[0]).replace('class="card"','class="card" style="padding:0;border:0"')+
+   (d.cons.length>1?`<h4 style="margin:14px 0 6px">Consultas</h4>${d.cons.map(c=>`<div class="sm" style="margin-bottom:6px"><b>${esc(c.ce||'Sin centro')}</b> · ${esc([c.d,c.m].filter(Boolean).join(', '))}${c.dy.some(Boolean)?' · '+DAYS.map((k,i)=>c.dy[i]?k+' '+esc(c.dy[i]):'').filter(Boolean).join(', '):''}${mapsHref(c)?` · <a href="${esc(mapsHref(c))}" target="_blank" rel="noopener">Cómo llegar</a>`:''}</div>`).join('')}`:'')+
+   (s&&s.visitas&&s.visitas.length?`<h4 style="margin:14px 0 6px">Visitas</h4>${s.visitas.slice().reverse().map(v=>`<div class="sm" style="margin-bottom:4px">${fmtDate(v.f)} · <b>${esc(v.res)}</b>${v.mu?` · ${v.mu} muestras`:''}${v.nota?' · '+esc(v.nota):''}</div>`).join('')}`:'')+
+   (s&&s.prox?`<p class="sm" style="margin-top:10px">Próxima acción: <b>${esc(s.prox)}</b> ${fmtDate(s.prox_f)}</p>`:'')+
+   (d.url?`<p class="sm"><a href="${esc(d.url)}" target="_blank" rel="noopener">Ficha web</a></p>`:'');
+  if(!$('qdlg').open)$('qdlg').showModal();}
+function quickSearch(q){const n=norm(q);if(n.length<2){$('qsr').hidden=true;return}
+  const r=[];for(const d of DATA){if(norm(d.n).includes(n)||d.cons.some(c=>norm(c.ce).includes(n)||norm(c.m).includes(n)))r.push(d);if(r.length>=40)break}
+  $('qsr').innerHTML=r.length?r.map(d=>`<button type="button" data-q="${d.c}"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}</div><div class="sm">${esc(d.e||'')} · ${esc(d.cons[0].ce||'')} · ${esc(d.cons[0].m||'')}</div></button>`).join(''):'<div class="sm" style="padding:12px">Sin resultados</div>';
+  $('qsr').hidden=false;}
+function nearMe(){if(!navigator.geolocation){alert('Este dispositivo no permite obtener la ubicación.');return}
+  const b=$('nearBtn');if(b)b.textContent='Buscando tu ubicación…';
+  navigator.geolocation.getCurrentPosition(p=>{S.near=[p.coords.latitude,p.coords.longitude];S.tab='M';S.limit=100;if(b)b.textContent='Cerca de mí';render();window.scrollTo({top:0})},
+    e=>{if(b)b.textContent='Cerca de mí';alert(e.code===1?'Para usar "Cerca de mí", permite el acceso a la ubicación en los ajustes del navegador.':'No se ha podido obtener la ubicación. Inténtalo de nuevo.')},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});}
+function weekSummary(){
+  const monday=new Date();monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const ms=monday.toISOString().slice(0,10);
+  const vs=[];SEG.forEach(s=>(s.visitas||[]).forEach(v=>{if(v.f>=ms)vs.push({...v,c:s.c})}));
+  const byRes={};vs.forEach(v=>byRes[v.res]=(byRes[v.res]||0)+1);const mu=vs.reduce((n,v)=>n+(+v.mu||0),0);
+  const inter=vs.filter(v=>['Interesado','Muestras entregadas','Ya prescribe'].includes(v.res)).map(v=>BYCODE.get(v.c)).filter(Boolean);
+  const wk=new Date();wk.setDate(wk.getDate()+7);const wks=wk.toISOString().slice(0,10);
+  const prox=[...SEG.values()].filter(s=>s.prox_f&&s.prox_f>=today()&&s.prox_f<=wks).sort((a,b)=>a.prox_f.localeCompare(b.prox_f));
+  let t=`DLC · Resumen de la semana (desde el ${fmtDate(ms)})\n\nVisitas: ${vs.length}\n`+Object.entries(byRes).map(([k,n])=>`· ${k}: ${n}`).join('\n')+`\nMuestras de DOLNER entregadas: ${mu}\n`;
+  if(inter.length)t+=`\nInteresados o prescriben:\n`+[...new Set(inter)].map(d=>`· ${d.n} (${d.e||''})`).join('\n')+'\n';
+  if(prox.length)t+=`\nPróximas acciones (7 días):\n`+prox.map(s=>`· ${fmtDate(s.prox_f)} ${BYCODE.get(s.c)?.n||s.n}: ${s.prox||'seguimiento'}`).join('\n')+'\n';
+  return t;}
+async function shareWeek(){const t=weekSummary();
+  if(navigator.share){try{await navigator.share({title:'Resumen de la semana',text:t});return}catch(e){if(e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(t);alert('Resumen copiado. Pégalo en WhatsApp o en un email.')}catch(e){prompt('Copia el resumen:',t)}}
+function icsDownload(title,date,hIni,hFin,desc,loc){
+  const z=x=>String(x).padStart(2,'0');const dt=(d,h)=>d.replace(/-/g,'')+'T'+h.replace(':','')+'00';
+  const esc2=x=>String(x||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
+  const now=new Date();const stamp=now.getUTCFullYear()+z(now.getUTCMonth()+1)+z(now.getUTCDate())+'T'+z(now.getUTCHours())+z(now.getUTCMinutes())+'00Z';
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//DLC OS//ES','BEGIN:VEVENT','UID:'+Date.now()+'@dlc-os','DTSTAMP:'+stamp,'DTSTART;TZID=Europe/Madrid:'+dt(date,hIni),'DTEND;TZID=Europe/Madrid:'+dt(date,hFin),
+    'SUMMARY:'+esc2(title),'DESCRIPTION:'+esc2(desc),'LOCATION:'+esc2(loc),'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:'+esc2(title),'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const a=document.createElement('a');a.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics);a.download='dlc-evento.ics';document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),500);}
+function planToCalendar(){const pl=P.plan;if(!pl||pl.error||!pl.stops.length)return;
+  const lines=pl.stops.map(s=>s.lunch?`${hm(s.arr)} Pausa para comer`:`${hm(s.arr)} ${s.ct.ce==='CONSULTA PRIVADA'?'Consulta privada':s.ct.ce} (${s.ct.m}): ${s.seq.map(x=>x.d.n).join('; ')}`);
+  icsDownload('Ruta de visitas DLC',P.fecha,P.salida,hm(pl.llegada),lines.join('\n'),'Santpedor');}
 
 /* ================= Plan del día ================= */
 const HOME={n:'Santpedor',lat:41.7833,lon:1.8414};
@@ -531,6 +603,7 @@ function nextWorkday(){const d=new Date();d.setDate(d.getDate()+1);while([0,6].i
 function focusCodes(){
   if(P.foco==='auto')return null;
   const r=ROUTES.find(x=>x.id===P.foco); if(!r)return null; const set=new Set();
+  if(r.dyn){DATA.forEach(d=>{if(d.top)set.add(d.c)});return set}
   if(r.cor){CORD.forEach(d=>set.add(d.c));return set}
   r.blocks.forEach(b=>{const x=routeDocs(b);x.anchors.forEach(a=>a.docs.forEach(([d])=>set.add(d.c)));if(!b.stops)x.fill.forEach(([d])=>set.add(d.c))});
   return set;
@@ -626,7 +699,7 @@ function renderP(){
     const nowM=new Date().getHours()*60+new Date().getMinutes();const isToday=P.fecha===today();const nextI=isToday?pl.stops.findIndex(s=>!s.lunch&&s.end>=nowM):-1;
     const links=[];for(let i=0;i<places.length;i+=8){const part=places.slice(i,i+8);const o=i===0?'Santpedor':places[i-1];const dst=i+8>=places.length?'Santpedor':part[part.length-1];const wp=i+8>=places.length?part:part.slice(0,-1);
       links.push('https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(o)+'&destination='+encodeURIComponent(dst)+'&travelmode=driving'+(wp.length?'&waypoints='+encodeURIComponent(wp.join('|')):''))}
-    if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
+    if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" class="btn sec" id="pCal">Añadir al calendario</button>${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
     h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida de Santpedor</li>`;
     pl.stops.forEach((s,si)=>{
       if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
@@ -682,9 +755,13 @@ function consRow(c,i){
    <div class="grid2"><div><label>Teléfono de esta consulta</label><input data-f="tel" value="${esc(c.tel||'')}" inputmode="tel"></div>
    <div style="display:flex;align-items:end;justify-content:flex-end">${i>0?`<button type="button" class="reg" data-rm="${i}">Quitar esta consulta</button>`:''}</div></div></fieldset>`;
 }
-function openEdit(code){
-  const d=BYCODE.get(code); EDCODE=code; const f=FICHA.get(code)||{};
-  $('eTitle').textContent=d.n; $('eSub').textContent=(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
+let NEWD=null;
+function openEdit(code,nd){
+  if($('qdlg').open)$('qdlg').close();
+  const d=nd||BYCODE.get(code); EDCODE=code; NEWD=nd||null; const f=FICHA.get(code)||{};
+  $('eNewRow').hidden=!nd; $('eName').value=''; $('eArea').value=d.a||'Aparato locomotor y dolor';
+  $('eUrg').checked=!!d.top; $('eUrgM').value=d.top&&d.top!=='Marcado desde la app'?d.top:'';
+  $('eTitle').textContent=nd?'Nuevo médico':d.n; $('eSub').textContent=nd?'Se añadirá a tu hoja de Google':(d.ed?'Editada por ti el '+fmtDate(d.ed)+' · ':'')+'Código '+d.c;
   $('eEsp').value=d.e||''; $('eTel').value=d.tel||''; $('eCont').value=f.contacto||segOf(code)?.contacto||''; $('eNota').value=f.nota||'';
   $('eCons').innerHTML=d.cons.map((c,i)=>consRow(c,i)).join('');
   $('eMsg').textContent=DB?'':'Para guardar, abre el explorador desde su enlace de Claude.'; $('eSave').disabled=!DB;
@@ -693,15 +770,29 @@ function openEdit(code){
 function readEdit(){
   const cons=[...$('eCons').querySelectorAll('fieldset')].map(fs=>{const g=f=>fs.querySelector(`[data-f="${f}"]`).value.trim();
     return {ce:g('ce'),m:g('m')||'BARCELONA',d:g('d'),cp:g('cp'),tel:g('tel'),dy:[...fs.querySelectorAll('[data-dy]')].map(i=>i.value.trim())}}).filter(c=>c.ce||c.d);
-  return {c:EDCODE,n:BYCODE.get(EDCODE).n,e:$('eEsp').value.trim(),tel:$('eTel').value.trim(),contacto:$('eCont').value.trim(),nota:$('eNota').value.trim(),cons,upd:today()};
+  return {c:EDCODE,n:NEWD?upperNoAcc($('eName').value).replace(/\s*,\s*/,', '):BYCODE.get(EDCODE).n,e:$('eEsp').value.trim(),tel:$('eTel').value.trim(),contacto:$('eCont').value.trim(),nota:$('eNota').value.trim(),cons,upd:today()};
 }
 async function saveEdit(){
   if(!DB||!EDCODE)return; const doc=readEdit();
+  if(NEWD&&!/,/.test(doc.n)){$('eMsg').textContent='Escribe el nombre como APELLIDOS, NOMBRE (con coma).';return}
   if(!doc.cons.length){$('eMsg').textContent='Deja al menos una consulta con centro o dirección.';return}
+  const urgOn=$('eUrg').checked, motivo=$('eUrgM').value.trim();
+  if(NEWD){doc.nuevo=true;doc.a=$('eArea').value;if(urgOn)doc.prioridad='Urgente · '+(motivo||'Marcado desde la app');
+    const nd={...NEWD,n:doc.n,e:doc.e,a:doc.a,tel:doc.tel,top:urgOn?(motivo||'Marcado desde la app'):''};addDoctor(nd);}
+  else{const d=BYCODE.get(EDCODE);const want=urgOn?(motivo||'Marcado desde la app'):'';if(want!==(d.top||''))setUrgent(d.c,urgOn,motivo);}
   $('eSave').disabled=true;$('eMsg').textContent='Guardando…';
   try{await DB.collection('fichas').doc(String(EDCODE)).set(doc);FICHA.set(EDCODE,doc);applyFicha(EDCODE);$('edlg').close();afterEdit();}
   catch(e){$('eMsg').textContent=e.code==='quota_exceeded'?'No caben más fichas editadas. Pídeme que las pase al Excel y las archive.':'No se ha podido guardar ('+(e.code||'error')+'). Inténtalo de nuevo.';$('eSave').disabled=false}
 }
+function addDoctor(nd){DATA.push(nd);BYCODE.set(nd.c,nd);ORIG.set(nd.c,JSON.stringify({cons:nd.cons,e:nd.e,tel:nd.tel,q:nd.q,a:nd.a}))}
+function newDoctorObj(code){return {c:code,t:'Persona',n:'',e:'',a:'Aparato locomotor y dolor',car:'',eq:'',ub:'',p:'BARCELONA',m:'BARCELONA',ce:'',g:'',d:'',cp:'',di:'',tel:'',q:'Confirmada con dirección',st:'Dónde confirmado',url:'',
+  cons:[{ce:'',g:'',m:'BARCELONA',p:'BARCELONA',d:'',di:null,cp:'',tel:'',dy:['','','','',''],cf:true}],top:'',cor:0,vn:'',sl:[],ed:'',contacto:'',nota:'',nuevo:true}}
+function openNew(){const c=9000000+(Date.now()%999999);openEdit(c,newDoctorObj(c))}
+function setUrgent(code,on,motivo){const d=BYCODE.get(code);if(!d)return;
+  d.top=on?(motivo||'Marcado desde la app'):'';
+  const pr=on?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':'');
+  if(typeof queueOp==='function')queueOp('prioridad',{c:code,prioridad:pr},'c');render();
+  if($('qdlg').open)openQuick(code);}
 function afterEdit(){ if(S.tab==='P'&&P.plan){P.plan=buildPlan();} render(); }
 async function saveScheduleFromVisit(code,ce,horario){ // el horario captado en una visita también actualiza la ficha
   if(!DB)return; const d=BYCODE.get(code); const base=FICHA.get(code);
@@ -769,11 +860,13 @@ function enqueue(name,id,v){
     if(i>=0)box[i]=op; else box.push(op);
   }else if(name==='seguimiento'){
     const last=(v.visitas||[])[v.visitas.length-1]||{};
-    box.push({id:'v-'+uid(),tipo:'visita',at:Date.now(),data:{id:'v-'+uid(),f:last.f||v.ultima,c:v.c,n:v.n,ce:last.ce||v.ce,res:last.res||v.res,horario:v.horario||{},contacto:v.contacto||'',nota:last.nota||'',prox:v.prox||'',prox_f:v.prox_f||''}});
+    box.push({id:'v-'+uid(),tipo:'visita',at:Date.now(),data:{id:'v-'+uid(),f:last.f||v.ultima,c:v.c,n:v.n,ce:last.ce||v.ce,res:last.res||v.res,horario:v.horario||{},contacto:v.contacto||'',nota:last.nota||'',prox:v.prox||'',prox_f:v.prox_f||'',muestras:last.mu||0}});
   }
   obxSet(box); flush();
 }
 DB={collection:(name)=>({doc:(id)=>({set:async(v)=>enqueue(name,id,v)})})};
+function queueOp(tipo,data,key){const box=obxGet();const op={id:tipo[0]+'-'+uid(),tipo,data,at:Date.now()};
+  const i=key?box.findIndex(o=>o.tipo===tipo&&String(o.data[key])===String(data[key])):-1; if(i>=0)box[i]=op; else box.push(op); obxSet(box); flush();}
 let flushing=false,lastSync=localStorage.getItem('dlc_lastsync')||'';
 async function flush(){
   if(flushing||!navigator.onLine||!CFG.url)return; const box=obxGet(); if(!box.length){syncUI();return}
@@ -815,13 +908,15 @@ function buildFromSheet(){
     const d=BYCODE.get(c);
     SEG.set(c,{c,n:d?d.n:last[I['NOMBRE']],ce:last[I['CENTRO']],ultima:last[I['FECHA']],res:last[I['RESULTADO']],horario,
       contacto:(rows.map(r=>r[I['CONTACTO']]).filter(Boolean).pop())||(d&&d.contacto)||'',prox:last[I['PRÓXIMA ACCIÓN']],prox_f:last[I['FECHA PRÓXIMA ACCIÓN']],
-      visitas:rows.map(r=>({f:r[I['FECHA']],res:r[I['RESULTADO']],ce:r[I['CENTRO']],nota:r[I['NOTA']]}))});
+      visitas:rows.map(r=>({f:r[I['FECHA']],res:r[I['RESULTADO']],ce:r[I['CENTRO']],nota:r[I['NOTA']],mu:+(I['MUESTRAS']!==undefined?r[I['MUESTRAS']]:0)||0}))});
   });
   DATA.forEach(d=>{if(d.ed)FICHA.set(d.c,{c:d.c,n:d.n,e:d.e,tel:d.tel,contacto:d.contacto||'',nota:d.nota||'',upd:d.ed,cons:d.cons.map(x=>({ce:x.ce,m:x.m,d:x.d,cp:x.cp,tel:x.tel,dy:[...x.dy]}))})});
   // reaplicar lo pendiente de enviar
   for(const o of obxGet()){
+    if(o.tipo==='prioridad'){const d=BYCODE.get(+o.data.c);if(d){const p=o.data.prioridad||'';d.top=p.startsWith('Urgente · ')?p.slice(10):''}continue}
+    if(o.tipo==='ficha'&&o.data.nuevo&&!BYCODE.has(+o.data.c)){const nd=newDoctorObj(+o.data.c);Object.assign(nd,{n:o.data.n,e:o.data.e||'',a:o.data.a||nd.a,tel:o.data.tel||'',top:(o.data.prioridad||'').startsWith('Urgente · ')?o.data.prioridad.slice(10):''});addDoctor(nd)}
     if(o.tipo==='ficha'){FICHA.set(+o.data.c,o.data);applyFicha(+o.data.c)}
-    else{const v=o.data,c=+v.c,prev=SEG.get(c)||{c,n:v.n,visitas:[]};const vis=(prev.visitas||[]).concat([{f:v.f,res:v.res,ce:v.ce,nota:v.nota}]);
+    else{const v=o.data,c=+v.c,prev=SEG.get(c)||{c,n:v.n,visitas:[]};const vis=(prev.visitas||[]).concat([{f:v.f,res:v.res,ce:v.ce,nota:v.nota,mu:v.muestras||0}]);
       SEG.set(c,{...prev,ce:v.ce,ultima:(prev.ultima&&prev.ultima>v.f)?prev.ultima:v.f,res:(prev.ultima&&prev.ultima>v.f)?prev.res:v.res,horario:{...(prev.horario||{}),...(v.horario||{})},contacto:v.contacto||prev.contacto,prox:v.prox,prox_f:v.prox_f,visitas:vis})}
   }
 }

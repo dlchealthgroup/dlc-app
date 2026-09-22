@@ -234,6 +234,32 @@ html,body{max-width:100%;overflow-x:hidden}
   .acts{position:sticky;bottom:0;background:var(--panel);padding:10px 0 4px}
   .warn{margin:10px 0 0}
 }
+
+/* ---------- v1.2 ---------- */
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;min-height:42px;text-align:left;line-height:1.3}
+input::-webkit-date-and-time-value{text-align:left}
+.pform>div,.grid2>div{min-width:0}
+.pform label,.grid2 label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pform input,.pform select{min-height:42px}
+.qs{position:relative;margin:0 0 12px}
+.qs input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel)}
+.qsr{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:35;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(10,20,30,.18);max-height:60vh;overflow:auto}
+.qsr button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 12px;cursor:pointer}
+.qsr button:hover{background:var(--bg)}
+.resb{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.resb button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 8px;font-weight:600;cursor:pointer;color:var(--ink)}
+.resb button[aria-pressed=true]{background:var(--navy);color:var(--panel);border-color:var(--navy)}
+.urgrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-top:12px;background:#FCEBD0;border-radius:10px;padding:8px 10px}
+.urgchk{display:flex;gap:8px;align-items:center;font-weight:600;white-space:nowrap}
+.act.urg{border-color:var(--warn);color:var(--warn)}.act.urg.on{background:var(--warn);color:#fff}
+.dist{font-weight:700;color:var(--navy)}
+@media (max-width:760px){
+  .deskonly{display:none!important}
+  .bar.empty{display:none}
+  .resb{grid-template-columns:1fr 1fr}
+  .resb button{padding:12px 8px}
+  .urgrow{grid-template-columns:1fr}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -243,6 +269,7 @@ html,body{max-width:100%;overflow-x:hidden}
     <div><h1>DLC OS · Rutas y médicos</h1><p id="sub"></p></div>
     <div class="syncbar"><span id="syncState" class="sync"></span><button type="button" class="reg" id="syncBtn">Sincronizar</button><button type="button" class="reg" id="cfgBtn">Ajustes</button></div>
   </header>
+  <div class="qs"><input id="qs" type="search" placeholder="Buscar médico, centro o municipio" autocomplete="off" spellcheck="false" enterkeyhint="search"><div class="qsr" id="qsr" hidden></div></div>
   <div class="warn" id="newData" hidden style="margin:0 0 12px">Hay datos nuevos en la hoja de Google. <button type="button" class="reg" id="newDataBtn">Actualizar ahora</button></div>
 
   <section class="ask" id="ask" hidden>
@@ -303,7 +330,8 @@ html,body{max-width:100%;overflow-x:hidden}
       <section class="panel" id="viewM" hidden>
         <div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
-          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="dlx">Descargar Excel</button><button class="dl" id="dl" hidden>Descargar CSV</button></span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl deskonly" id="dlx">Descargar Excel</button><button class="dl deskonly" id="dl" hidden>Descargar CSV</button></span>
         </div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Centro</th><th>Municipio</th><th>Dirección</th><th>Teléfono</th><th>Días</th><th>Ubicación</th><th>Visita</th></tr></thead>
@@ -322,16 +350,19 @@ html,body{max-width:100%;overflow-x:hidden}
       </section>
       <section class="panel" id="viewS" hidden>
         <div class="stats" id="stats"></div>
-        <div class="opts" style="justify-content:flex-end"><button class="dl" id="dlSeg" hidden>Descargar seguimiento (CSV)</button></div>
+        <div class="opts" style="justify-content:flex-end"><button class="dl" id="shareBtn">Compartir resumen de la semana</button><button class="dl deskonly" id="dlSeg" hidden>Descargar seguimiento (CSV)</button></div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Última visita</th><th>Resultado</th><th>Horario captado</th><th>Contacto</th><th>Próxima acción</th></tr></thead>
           <tbody id="sbody"></tbody>
         </table></div>
-        <div class="opts" style="justify-content:space-between;border-top:1px solid var(--line)"><b>Fichas editadas por ti · <span id="fcount">0</span></b><button class="dl" id="dlFich" hidden>Descargar fichas editadas (CSV)</button></div>
+        <div class="opts" style="justify-content:space-between;border-top:1px solid var(--line)"><b>Fichas editadas por ti · <span id="fcount">0</span></b><button class="dl deskonly" id="dlFich" hidden>Descargar fichas editadas (CSV)</button></div>
         <div class="tablewrap"><table><thead><tr><th>Médico</th><th>Cambio</th><th>Consultas y horario</th><th>Teléfono, contacto y nota</th><th></th></tr></thead><tbody id="fbody"></tbody></table></div>
       </section>
       <dialog id="edlg"><form method="dialog" id="eForm" class="fi">
         <h3 id="eTitle"></h3><div class="sm" id="eSub"></div>
+        <div id="eNewRow" hidden><label for="eName">Apellidos, Nombre</label><input id="eName" placeholder="p. ej. GARCIA LOPEZ, ANA" autocapitalize="characters">
+        <label for="eArea">Área</label><select id="eArea"><option>Aparato locomotor y dolor</option><option>Atención primaria</option><option>Otras especialidades</option></select></div>
+        <div class="urgrow"><label class="urgchk"><input type="checkbox" id="eUrg"> Urgente de visitar</label><input id="eUrgM" placeholder="Motivo (opcional)"></div>
         <div class="grid2"><div><label for="eEsp">Especialidad</label><div class="cbw"><input id="eEsp" data-cb="esp" autocomplete="off" placeholder="Escribe o elige"><button type="button" class="cbt" tabindex="-1" aria-label="Ver lista">▾</button></div></div><div><label for="eTel">Teléfono</label><input id="eTel" inputmode="tel"></div></div>
         <label for="eCont">Contacto (secretaría, email…)</label><input id="eCont">
         <div id="eCons"></div>
@@ -343,15 +374,17 @@ html,body{max-width:100%;overflow-x:hidden}
       
       <dialog id="dlg"><form method="dialog" id="dlgForm" class="fi">
         <h3 id="dlgTitle"></h3><div class="sm" id="dlgSub"></div>
-        <div class="grid2"><div><label for="vFecha">Fecha</label><input type="date" id="vFecha" required></div>
-        <div><label for="vRes">Resultado</label><select id="vRes"></select></div></div>
+        <label for="vFecha">Fecha</label><input type="date" id="vFecha" required>
+        <label>Resultado</label><div class="resb" id="vResB"></div><select id="vRes" hidden></select>
+        <label for="vMu">Muestras de DOLNER entregadas</label><input id="vMu" type="number" min="0" max="99" inputmode="numeric" placeholder="0">
         <label for="vCentro">Centro de la visita</label><select id="vCentro"></select>
         <label>Días y horario de consulta (p. ej. Mañana 9:00-13:00)</label>
         <div class="grid5" id="vDias"></div>
         <label for="vContacto">Contacto (secretaría, teléfono, email)</label><input id="vContacto">
-        <label for="vNota">Nota</label><textarea id="vNota" rows="2"></textarea>
+        <label for="vNota">Nota (en el iPhone puedes dictarla con el micrófono del teclado)</label><textarea id="vNota" rows="3"></textarea>
         <div class="grid2"><div><label for="vProx">Próxima acción</label><input id="vProx" placeholder="p. ej. volver con muestras"></div>
         <div><label for="vProxF">Fecha</label><input type="date" id="vProxF"></div></div>
+        <label class="urgchk" style="margin-top:10px"><input type="checkbox" id="vCal"> Añadir la próxima acción a mi calendario</label>
         <div class="acts"><button type="button" class="btn sec" id="dlgCancel">Cancelar</button><button type="submit" class="btn" id="dlgSave">Guardar visita</button></div>
         <div class="sm" id="dlgMsg" style="margin-top:8px"></div>
       </form></dialog>
@@ -362,16 +395,17 @@ html,body{max-width:100%;overflow-x:hidden}
 
 
 <nav class="bnav" id="bnav"><button type="button" data-tab="H"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Hoy</span></button><button type="button" data-tab="C"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M9 20v-5h6v5M9 11h.01M15 11h.01"/></svg><span>Centros</span></button><button type="button" data-tab="M"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Médicos</span></button><button type="button" data-tab="P"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg><span>Plan</span></button><button type="button" data-tab="R"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/></svg><span>Rutas</span></button><button type="button" data-tab="S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/><path d="M5 19h14"/></svg><span>Seguim.</span></button></nav>
+<dialog id="qdlg"><div class="fi" style="padding:18px"><div id="qbody"></div><div class="acts"><button type="button" class="btn sec" id="qClose">Cerrar</button></div></div></dialog>
 <dialog id="cfgDlg"><div class="fi" style="padding:18px">
   <h3>Ajustes</h3>
   <label for="cfgUrl">Dirección de la conexión (URL que acaba en /exec)</label><input id="cfgUrl" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url">
   <label for="cfgT">Clave</label><input id="cfgT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
   <label for="cfgMaps">App de mapas para "Cómo llegar"</label><select id="cfgMaps"><option value="google">Google Maps</option><option value="apple">Apple Maps</option></select>
-  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
+  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec deskonly" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.1.0';
+window.__APPVER='1.2.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -406,7 +440,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.1.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.2.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
