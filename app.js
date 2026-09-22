@@ -1,4 +1,7 @@
 const DATA=window.__DATA;
+const CFG=window.__cfg?window.__cfg():{};
+const USER=window.__USER||{usuario:'',nombre:'',rol:'',perm:{admin:false,mods:{},tabs:{},acc:{}}};
+
 const DAYS=['L','M','X','J','V'], DAYN={L:'lunes',M:'martes',X:'miércoles',J:'jueves',V:'viernes'};
 const CALS=['Confirmada con dirección','Confirmada: centro sin dirección','Confirmada: solo población','Sin verificar: dato original con dirección','Sin verificar: dato original sin dirección'];
 const RESULTS=['Presentado DOLNER','Interesado','Muestras entregadas','Entrega reporting','Ya prescribe','No estaba','No interesado','Ya no pasa consulta aquí'];
@@ -15,7 +18,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:''};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,areaSel:(localStorage.getItem('dlc_area')||'loc'),picks:new Set(),top:false,corDay:null,near:null,est:'',map:false,issue:'',asig:'',asignando:null};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -44,6 +47,7 @@ function docMatch(d){
   if(S.area&&d.a!==S.area)return false; if(S.esp&&d.e!==S.esp)return false; if(S.tipo&&d.t!==S.tipo)return false;
   if(S.top&&!d.top)return false;
   if(S.est&&estadoDe(d)!==S.est)return false;
+  if(S.asig){if(S.asig==='__sin'){if((d.asig||[]).length)return false}else if(!(d.asig||[]).includes(S.asig))return false}
   if(S.issue){const it=ISSUES.find(x=>x[0]===S.issue);if(!it||!enPool(d)||!it[2](d))return false}
   if(S.cal.length&&!S.cal.includes(d.q))return false; if(S.texto&&!norm(d.n).includes(norm(S.texto)))return false;
   const s=segOf(d.c);
@@ -183,19 +187,22 @@ function renderFilters(){
   if(S.top)add('top','Solo urgentes');
   if(S.near)add('near','Cerca de mí');
   if(S.est)add('est','Estado: '+S.est);
+  if(S.asig)add('asig',S.asig==='__sin'?'Sin asignar':'Asignado a '+S.asig);
   if(S.issue)add('issue','Revisar: '+(ISSUES.find(x=>x[0]===S.issue)||['',''])[1]);
   if(S.seg)add('seg',{sin:'Sin visitar',vis:'Visitados',prox:'Con próxima acción'}[S.seg]);
   $('chips').innerHTML=S.tab==='C'||S.tab==='M'?chips.join(''):'';
 }
 function visitCell(d){const s=segOf(d.c);if(!s||!s.ultima)return '<span class="sm">Sin visitar</span>';return `<span class="vis">${esc(s.res||'Visitado')}</span><div class="sm">${fmtDate(s.ultima)}</div>`}
 function render(){
+  if(!tabOk(S.tab)){S.tab=firstTab()||(PERM.admin?'A':'H')}
+  applyPerms();
   renderFilters();
-  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
-  const noF=(S.tab==='R'||S.tab==='S'||S.tab==='P'||S.tab==='H');document.querySelector('aside').style.display=noF?'none':'';$('fBtn').style.visibility=noF?'hidden':'';
+  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
+  const noF=(S.tab==='R'||S.tab==='S'||S.tab==='P'||S.tab==='H'||S.tab==='A');document.querySelector('aside').style.display=noF?'none':'';$('fBtn').style.visibility=noF?'hidden':'';
   document.querySelectorAll('#bnav [data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===S.tab));
   const nf=[S.prov,S.muni,S.grupo,S.centro,S.area,S.esp,S.tipo,S.texto,S.seg,S.est,S.issue].filter(Boolean).length+(S.dias.length?1:0)+(S.cal.length?1:0)+(S.top?1:0);$('fBtn').textContent=nf?`Filtros · ${nf}`:'Filtros';$('fBtn').classList.toggle('on',!!nf);
   document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
-  if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
+  if(S.tab==='A')renderA(); else if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
   chkBar();
   $('foot').textContent=datosTxt();
   $('fBtn').style.display=noF?'none':'';$('count').parentElement.classList.toggle('noinfo',!$('count').textContent.trim()&&noF);
@@ -207,12 +214,13 @@ function renderC(){
     return `<li><button data-i="${i}" title="Ver sus médicos"><span class="pos">${i+1}</span><span><div class="rname">${esc(x.name)}</div><div class="rsub">${esc(sub)} · ${x.cf} con ubicación confirmada</div><div class="track"><span class="c" style="width:${x.cf/max*100}%"></span><span class="u" style="width:${(x.n-x.cf)/max*100}%"></span></div></span><span class="num">${x.n}</span></button></li>`}).join('')
     :`<li class="empty">Ningún centro cumple estos filtros. Quita alguno para ver resultados.</li>`;
   $('rankMore').hidden=r.length<=S.rlimit;
-  $('rank').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=r[+b.dataset.i];
+  $('rank').onclick=e=>{const b=e.target.closest('button');if(!b||!tabOk('M'))return;const x=r[+b.dataset.i];
     if(S.agr==='grupo'){S.grupo=x.g;S.centro='';}else{S.centro=x.ce;S.grupo='';if(x.muni)S.muni=x.muni;} S.tab='M';S.limit=100;render();window.scrollTo({top:0});};
 }
 function dayBadges(dy){return `<div class="dy">${DAYS.map((k,i)=>`<span class="${dy[i]?'on':''}" title="${dy[i]?esc(DAYN[k]+': '+dy[i]):''}">${k}</span>`).join('')}</div>`}
 function renderM(){
   const f=filtered();
+  if(PERM.admin)asignBar(f);else $('asignBar').hidden=true;
   $('count').innerHTML=`<b>${f.length.toLocaleString('es')}</b> médicos`;
   $('mNote').textContent=S.near?'Ordenados por distancia a tu posición (aproximada, hasta 25 km)':`${f.filter(([d,c])=>daysFor(d,c).some(Boolean)).length} con días de consulta conocidos · ordenados por provincia, municipio y centro`;
   $('tbody').innerHTML=f.slice(0,S.limit).map(([d,c])=>{
@@ -220,6 +228,7 @@ function renderM(){
     let h=`<tr class="row" data-c="${d.c}"><td><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div><div class="sm">${esc(d.e||'Sin especialidad')}${d.t==='Centro'?' · centro':''}${d.top?' · '+esc(d.top):''}</div></td><td>${esc(c.ce||'Sin centro')}<div class="sm">${c.g&&c.g!==c.ce?esc(c.g):''}</div></td><td>${esc(c.m||'')}</td><td>${esc(c.d||'')}</td><td style="white-space:nowrap">${esc(c.tel||'')}</td><td>${dayBadges(daysFor(d,c))}</td><td><span class="q ${qc}">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></td><td>${visitCell(d)}</td></tr>`;
     if(S.open.has(d.c))h+=detailRow(d,8);
     return h;}).join('')||`<tr><td colspan="8" class="empty">Ningún médico cumple estos filtros. Quita alguno para ver resultados.</td></tr>`;
+  if(S.asignando&&!isMob()){$('viewM').querySelector('.tablewrap').style.display='none';$('mapWrap').hidden=true;$('mcards').style.display='block';$('mcards').innerHTML=f.slice(0,S.limit).map(([d,c])=>cardHTML(d,c)).join('')||'<div class="empty">Ningún médico cumple estos filtros.</div>';$('more').hidden=f.length<=S.limit;return}
   if(S.map){$('viewM').querySelector('.tablewrap').style.display='none';$('mcards').style.display='none';$('more').hidden=true;renderMap(f);$('mapBtn').textContent='Ver lista';return}
   $('mapWrap').hidden=true;$('viewM').querySelector('.tablewrap').style.display='';$('mcards').style.display='';$('mapBtn').textContent='Ver mapa';
   $('mcards').innerHTML=isMob()?(f.slice(0,S.limit).map(([d,c])=>cardHTML(d,c)).join('')||'<div class="empty">Ningún médico cumple estos filtros.</div>'):'';
@@ -270,7 +279,7 @@ function corAgenda(){
 function pItem(d,c,pick){
   const s=segOf(d.c),p=prio(d),dy=daysFor(d,c);
   return `<li><span class="pri ${p}" title="Prioridad ${p}">${p}</span><span><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}</div><div class="sm">${esc(d.e||'')}${d.top?' · '+esc(d.top):''}${d.vn?' · Cuándo: '+esc(d.vn):d.slot&&d.slot.src==='web'?' · '+esc(d.slot.n):''}${pick?' · '+esc(c.ce||'')+' · '+esc(c.d||c.m):''}${dy.some(Boolean)?' · '+DAYS.map((k,i)=>dy[i]?k+' '+esc(dy[i]):'').filter(Boolean).join(', '):''}</div>${s&&s.ultima?`<div class="vis">${esc(s.res)} · ${fmtDate(s.ultima)}${s.prox?' · '+esc(s.prox):''}</div>`:''}</span>
-   <span style="display:flex;gap:8px;align-items:center">${pick?`<label class="addchk"><input type="checkbox" data-pick="${d.c}" ${S.picks.has(d.c)?'checked':''}> ruta</label>`:''}<button class="reg" data-edit="${d.c}">Editar ficha</button><button class="reg" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button></span></li>`;
+   <span style="display:flex;gap:8px;align-items:center">${pick?`<label class="addchk"><input type="checkbox" data-pick="${d.c}" ${S.picks.has(d.c)?'checked':''}> ruta</label>`:''}${can('editar')?`<button class="reg" data-edit="${d.c}">Editar ficha</button>`:''}${can('registrar')?`<button class="reg" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>`:''}</span></li>`;
 }
 function renderS(){
   $('count').innerHTML='';
@@ -335,14 +344,14 @@ function init(){
   on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('areaSel','change',e=>{setArea(e.target.value)});
   on('reset','click',()=>{clearFilters();reset0()});
   on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=k==='near'?null:(Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:''));if(k==='prov')S.muni='';reset0()});
-  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']])on(id,'click',()=>{S.tab=k;render()});
+  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS'],['A','tabA']])on(id,'click',()=>{S.tab=k;render()});
   on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
   on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
   on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
   on('nearBtn','click',e=>nearMe(e.target));
   on('mapBtn','click',e=>{S.map=!S.map;if(S.map&&!window.L)busy(e.target,()=>loadLeaflet().catch(()=>{}),'Cargando el mapa…').then(()=>render());else render()});
-  on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b)return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
-  on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b)return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
+  on('quality','click',e=>{const b=e.target.closest('[data-issue]');if(!b||!tabOk('M'))return;clearFilters();S.issue=b.dataset.issue;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
+  on('funnel','click',e=>{const b=e.target.closest('[data-est]');if(!b||!tabOk('M'))return;clearFilters();S.est=b.dataset.est;S.tab='M';S.limit=100;render();window.scrollTo({top:0})});
   document.addEventListener('change',e=>{const q=e.target.closest('[data-qest]');if(q)setEstado(+q.dataset.qest,q.value)});
   document.addEventListener('click',e=>{const a=e.target.closest('[data-qopen]');if(a){e.preventDefault();openQuick(+a.dataset.qopen);return}const du=e.target.closest('[data-dupopen]');if(du){e.preventDefault();$('edlg').close();openQuick(+du.dataset.dupopen)}});on('newBtn','click',openNew);on('shareBtn','click',shareWeek);
   let qt;on('qs','input',e=>{clearTimeout(qt);qt=setTimeout(()=>quickSearch(e.target.value),150)});
@@ -351,7 +360,7 @@ function init(){
   on('qsr','click',e=>{const b=e.target.closest('[data-q]');if(!b)return;$('qsr').hidden=true;$('qs').blur();openQuick(+b.dataset.q)});
   on('qClose','click',()=>$('qdlg').close());
   on('vResB','click',e=>{const b=e.target.closest('[data-res]');if(!b)return;$('vRes').value=b.dataset.res;$('vResB').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))});
-  document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();const d=BYCODE.get(+u.dataset.urg);if(!d)return;
+  document.addEventListener('click',e=>{const u=e.target.closest('[data-urg]');if(u){e.preventDefault();if(!can('urgente'))return;const d=BYCODE.get(+u.dataset.urg);if(!d)return;
       if(d.top){if(confirm('¿Quitar a '+d.n+' de urgentes?'))setUrgent(d.c,false)}else{const m=prompt('Motivo para marcar como urgente (opcional):','');if(m!==null)setUrgent(d.c,true,m.trim())}return}
     const c=e.target.closest('[data-cal]');if(c){const s=segOf(+c.dataset.cal),d=BYCODE.get(+c.dataset.cal);if(s&&s.prox_f){const cc=d.cons.find(x=>x.ce===s.ce)||d.cons[0];icsDownload(`${s.prox||'Seguimiento'} · ${d.n}`,s.prox_f,'09:00','09:30',d.e||'',[cc.ce,cc.d,cc.m].filter(Boolean).join(', '))}}});
   on('hoy','click',e=>{const hb=e.target.closest('[data-h]');if(hb){const k=hb.dataset.h;if(k==='near')nearMe(hb);else if(k==='new')openNew();else if(k==='calidad'){S.tab='S';render();setTimeout(()=>$('quality').scrollIntoView({behavior:'smooth'}),50)}else shareWeek();return}
@@ -361,7 +370,7 @@ function init(){
   on('more','click',()=>{S.limit+=100;render()});on('rankMore','click',()=>{S.rlimit+=40;render()});
   const toggle=e=>{if(e.target.closest('a,button,input,label'))return;const tr=e.target.closest('tr.row');if(!tr)return;const c=+tr.dataset.c;S.open.has(c)?S.open.delete(c):S.open.add(c);render()};
   on('tbody','click',toggle);on('sbody','click',toggle);
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b){e.preventDefault();openDlg(+b.dataset.reg,b.dataset.ce||'')}});
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b){e.preventDefault();if(can('registrar'))openDlg(+b.dataset.reg,b.dataset.ce||'')}});
   on('routes','click',e=>{const b=e.target.closest('.rcard');if(b){S.route=b.dataset.r;render()}});
   on('day','click',e=>{const b=e.target.closest('[data-cd]');if(b){S.corDay=+b.dataset.cd;render()}});
   on('plan','change',e=>{if(e.target.id==='pAr')setArea(e.target.value)});
@@ -370,10 +379,10 @@ function init(){
   on('dlgCancel','click',()=>$('dlg').close());
   on('dlgForm','submit',e=>{e.preventDefault();saveDlg()});
   on('vCentro','change',()=>{const d=BYCODE.get(DLGCODE),c=d.cons.find(x=>x.ce===$('vCentro').value);if(c)$('vDias').querySelectorAll('input').forEach((i,ix)=>{if(!i.value)i.value=c.dy[ix]||''})});
-  setupEdit();setupShare();setupV133();render();setupDownload();setupDb();
+  setupEdit();setupShare();setupV133();setupAdmin();render();setupDownload();setupDb();
 }
 function reset0(){S.limit=100;S.rlimit=40;render()}
-function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:''})}
+function clearFilters(){Object.assign(S,{prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',top:false,est:'',issue:'',asig:''})}
 
 async function setupDb(){
   if(!window.claude){$('dbWarn').hidden=false;return}
@@ -480,8 +489,9 @@ function mapsHref(c){const q=c.d?`${c.d}, ${c.m}`:(c.ce&&c.ce!=='CONSULTA PRIVAD
   if(pref==='waze')return c.lat&&c.lon?`https://waze.com/ul?ll=${c.lat},${c.lon}&navigate=yes`:`https://waze.com/ul?q=${e}&navigate=yes`;
   return pref==='apple'?`https://maps.apple.com/?daddr=${e}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=driving`}
 function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
-  return `<div class="acts2"><button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}<button type="button" class="act" data-edit="${d.c}">Editar ficha</button><button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>${extra||''}</div>`}
-function cardHTML(d,c){const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
+  return `<div class="acts2">${can('urgente')?`<button type="button" class="act urg ${d.top?'on':''}" data-urg="${d.c}">${d.top?'★ Urgente':'☆ Urgente'}</button>`:(d.top?'<span class="act urg on" style="cursor:default">★ Urgente</span>':'')}${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}${can('editar')?`<button type="button" class="act" data-edit="${d.c}">Editar ficha</button>`:''}${can('registrar')?`<button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>`:''}${extra||''}</div>`}
+function cardHTML(d,c){
+  const asg=S.asignando&&S.tab==='M'?`<button type="button" class="act ${(d.asig||[]).includes(S.asignando)?'pri2':''}" data-as1="${d.c}" style="margin-top:8px">${(d.asig||[]).includes(S.asignando)?'✓ Asignado a '+esc(S.asignando):'Asignar a '+esc(S.asignando)}</button>`:'';const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
   return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div>
   <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}${d._km!=null?` · <span class="dist">a ${d._km<1?'menos de 1':d._km.toFixed(1).replace('.',',')} km${d._kx?'':' (aprox.)'}</span>`:''}</div>
   <div style="margin-top:6px">${esc(c.ce||'Sin centro')}${c.g&&c.g!==c.ce?` <span class="sm">· ${esc(c.g)}</span>`:''}</div>
@@ -489,7 +499,7 @@ function cardHTML(d,c){const qc=d.q.startsWith('Confirmada con')?'ok':d.q.starts
   <div class="row2">${dayBadges(dy)}<span class="q ${qc}" style="font-size:12.5px">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></div>
   ${dy.some(Boolean)?`<div class="sm" style="margin-top:4px">${DAYS.map((k,i)=>dy[i]?k+' '+esc(dy[i]):'').filter(Boolean).join(' · ')}</div>`:''}
   ${d.vn?`<div class="sm">Cuándo: ${esc(d.vn)}</div>`:''}
-  <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="estb" data-e="${estadoDe(d)}">${esc(estadoDe(d))}</span>${visitCell(d)}</div>${actBtns(d,c)}</div>`}
+  <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="estb" data-e="${estadoDe(d)}">${esc(estadoDe(d))}</span>${visitCell(d)}${PERM.admin&&(d.asig||[]).length?`<span class="sm">· ${esc(d.asig.join(', '))}</span>`:''}</div>${asg||actBtns(d,c)}</div>`}
 /* ---------- Hoy ---------- */
 function renderH(){
   $('count').innerHTML='';
@@ -503,9 +513,9 @@ function renderH(){
   const stats=ROUTES.map(r=>({r,...routeStats(r)}));
   const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
   const weekMu=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).reduce((m,v)=>m+(+v.mu||0),0),0);
-  let h=`<div class="acts2" style="margin:0 0 14px"><button type="button" class="act" data-h="near">Cerca de mí</button><button type="button" class="act" data-h="new">+ Nuevo médico</button><button type="button" class="act" data-h="share">Compartir semana</button></div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%','fichas completas · ver qué falta','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"')})()}</div>`;
+  let h=`<div class="acts2" style="margin:0 0 14px">${tabOk('M')?'<button type="button" class="act" data-h="near">Cerca de mí</button>':''}${can('nuevo')?'<button type="button" class="act" data-h="new">+ Nuevo médico</button>':''}${tabOk('S')?'<button type="button" class="act" data-h="share">Compartir semana</button>':''}</div><div class="kpis">${kpi(weekV,'visitas esta semana','visit')}${kpi(weekMu,'muestras de DOLNER esta semana','sample')}${kpi(due.filter(s=>s.prox_f<=td).length,'acciones para hoy o atrasadas','task',due.filter(s=>s.prox_f<=td).length?'k-warn':'')}${kpi(urg.length,'urgentes sin visitar','urg',urg.length?'k-warn':'k-ok')}${kpi(pend,pend===1?'cambio pendiente de enviar':'cambios pendientes de enviar','sync',pend?'k-warn':'k-ok')}${(()=>{const q=calidad();return kpi(q.pct+'%',tabOk('S')?'fichas completas · ver qué falta':'fichas completas','data','',`<div class="kbar"><i style="width:${q.pct}%"></i></div>`,tabOk('S')?'data-h="calidad" role="button" tabindex="0" style="cursor:pointer"':'')})()}</div>`;
   h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
-     <div class="acts2"><button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button><button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button></div></div></div>`;
+     <div class="acts2">${tabOk('R')?`<button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button>`:''}${tabOk('P')?`<button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button>`:''}</div></div></div>`;
   h+=`<div class="hsec"><h3>Próximas acciones (7 días)</h3>${due.length?due.slice(0,30).map(s=>{const d=BYCODE.get(s.c);const c=d.cons.find(x=>x.ce===s.ce)||d.cons[0];
      return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm"><b style="color:${s.prox_f<td?'var(--warn)':'var(--navy)'}">${fmtDate(s.prox_f)}</b> · ${esc(s.prox||'Seguimiento')} · última visita ${fmtDate(s.ultima)} (${esc(s.res||'')})</div>${actBtns(d,c,`<button type="button" class="act" data-cal="${d.c}">Al calendario</button>`)}</div>`}).join(''):'<p class="sm">No hay acciones con fecha en los próximos 7 días.</p>'}</div>`;
   h+=`<div class="hsec"><h3>Urgentes sin visitar</h3>${urg.length?urg.map(d=>{const c=d.cons[0];return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm">${esc(d.top)} · ${esc(c.ce||'')}${d.vn?' · '+esc(d.vn):''}</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">Todos los urgentes están visitados.</p>'}</div>`;
@@ -529,7 +539,7 @@ async function downloadXlsx_(rows,name){const btn=null;const old='';
 /* ---------- v1.2: búsqueda, ficha rápida, cerca de mí, resumen, calendario ---------- */
 function openQuick(code){const d=BYCODE.get(code);if(!d)return;const s=segOf(code);
   $('qbody').innerHTML=cardHTML(d,d.cons[0]).replace('class="card"','class="card" style="padding:0;border:0"')+
-   `<div style="margin-top:12px"><label class="sm" for="qEst">Estado comercial</label><select id="qEst" data-qest="${d.c}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)">${ESTADOS.map(e=>`<option ${estadoDe(d)===e?'selected':''}>${e}</option>`).join('')}</select><div class="sm">${d.est?'Fijado a mano':'Calculado según las visitas'}</div></div>`+
+   `<div style="margin-top:12px"><label class="sm" for="qEst">Estado comercial</label><select id="qEst" data-qest="${d.c}" ${can('estado')?'':'disabled'} style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)">${ESTADOS.map(e=>`<option ${estadoDe(d)===e?'selected':''}>${e}</option>`).join('')}</select><div class="sm">${d.est?'Fijado a mano':'Calculado según las visitas'}</div></div>`+
    (d.cons.length>1?`<h4 style="margin:14px 0 6px">Consultas</h4>${d.cons.map(c=>`<div class="sm" style="margin-bottom:6px"><b>${esc(c.ce||'Sin centro')}</b> · ${esc([c.d,c.m].filter(Boolean).join(', '))}${c.dy.some(Boolean)?' · '+DAYS.map((k,i)=>c.dy[i]?k+' '+esc(c.dy[i]):'').filter(Boolean).join(', '):''}${mapsHref(c)?` · <a href="${esc(mapsHref(c))}" target="_blank" rel="noopener">Cómo llegar</a>`:''}</div>`).join('')}`:'')+
    (s&&s.visitas&&s.visitas.length?`<h4 style="margin:14px 0 6px">Visitas</h4>${s.visitas.slice().reverse().map(v=>`<div class="sm" style="margin-bottom:4px">${fmtDate(v.f)}${v.h?' '+esc(v.h):''} · <b>${esc(v.res)}</b>${v.mu?` · ${v.mu} muestras`:''}${v.nota?' · '+esc(v.nota):''}</div>`).join('')}`:'')+
    (s&&s.prox?`<p class="sm" style="margin-top:10px">Próxima acción: <b>${esc(s.prox)}</b> ${fmtDate(s.prox_f)}</p>`:'')+
@@ -539,7 +549,7 @@ function quickSearch(q){const n=norm(q);if(n.length<2){$('qsr').hidden=true;retu
   const r=[];for(const d of DATA){if(norm(d.n).includes(n)||d.cons.some(c=>norm(c.ce).includes(n)||norm(c.m).includes(n)))r.push(d);if(r.length>=40)break}
   $('qsr').innerHTML=r.length?r.map(d=>`<button type="button" data-q="${d.c}"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}</div><div class="sm">${esc(d.e||'')} · ${esc(d.cons[0].ce||'')} · ${esc(d.cons[0].m||'')}</div></button>`).join(''):'<div class="sm" style="padding:12px">Sin resultados</div>';
   $('qsr').hidden=false;}
-function nearMe(btn){if(!navigator.geolocation){toast('Este dispositivo no permite obtener la ubicación',true);return}
+function nearMe(btn){if(!tabOk('M'))return;if(!navigator.geolocation){toast('Este dispositivo no permite obtener la ubicación',true);return}
   const b=btn||$('nearBtn');return busy(b,()=>new Promise(done=>nearMe_(done)),'Buscando tu ubicación…')}
 function nearMe_(done){const b=null;
   navigator.geolocation.getCurrentPosition(p=>{S.near=[p.coords.latitude,p.coords.longitude];S.tab='M';S.limit=100;done();render();window.scrollTo({top:0})},
@@ -672,9 +682,117 @@ function setupV133(){
   ['gesturestart','gesturechange'].forEach(ev=>document.addEventListener(ev,e=>{if(!e.target.closest||!e.target.closest('#map'))e.preventDefault()},{passive:false}));
   document.querySelector('.logo').addEventListener('click',()=>{toast(`DLC OS · versión ${window.__APPVER}${datosTxt()?' · '+datosTxt().toLowerCase():''}`,'info');checkVersion(false)});
   $('eUrgSeg').addEventListener('click',e=>{const b=e.target.closest('[data-u]');if(!b)return;$('eUrg').checked=b.dataset.u==='1';urgSeg();if($('eUrg').checked)$('eUrgM').focus()});
-  ['edlg','dlg','qdlg','shdlg','cfgDlg'].forEach(id=>{const dl=$(id);if(!dl)return;dl.addEventListener('mousedown',e=>{dl._down=e.target===dl});dl.addEventListener('click',e=>{if(e.target===dl&&dl._down)dl.close()})});
+  ['edlg','dlg','qdlg','shdlg','cfgDlg','udlg'].forEach(id=>{const dl=$(id);if(!dl)return;dl.addEventListener('mousedown',e=>{dl._down=e.target===dl});dl.addEventListener('click',e=>{if(e.target===dl&&dl._down)dl.close()})});
   checkVersion(false);setInterval(()=>checkVersion(false),30*60*1000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion(false)});
+}
+
+/* ================= v1.4: permisos y administración ================= */
+const PERM=USER.perm||{admin:false,mods:{},tabs:{},acc:{}};
+const can=k=>!!(PERM.admin||(PERM.acc&&PERM.acc[k]));
+const tabOk=k=>k==='A'?!!PERM.admin:!!(PERM.admin||(PERM.tabs&&PERM.tabs[k]&&PERM.mods&&PERM.mods.rutas));
+const TABS_ORD=['H','C','M','P','R','S'];
+const firstTab=()=>TABS_ORD.find(tabOk)||null;
+function sesionCaducada(){if(window.__sesionAvisada)return;window.__sesionAvisada=true;toast('Tu sesión ha caducado. Vuelve a entrar.',true);setTimeout(()=>window.__logout(true),1800)}
+window.__sesionCaducada=sesionCaducada;
+function applyPerms(){
+  TABS_ORD.forEach(k=>{const b=$('tab'+k);if(b)b.style.display=tabOk(k)?'':'none';const nb=document.querySelector(`#bnav [data-tab="${k}"]`);if(nb)nb.style.display=tabOk(k)?'':'none'});
+  const n=TABS_ORD.filter(tabOk).length;$('bnav').style.gridTemplateColumns=`repeat(${Math.max(1,n)},1fr)`;
+  const ms=$('modSel');if(ms){ms.innerHTML=(PERM.admin||(PERM.mods&&PERM.mods.rutas)?'<option value="rutas">Rutas y médicos</option>':'')+'<option disabled>Facturación · próximamente</option><option disabled>Pacientes · próximamente</option><option disabled>Métricas · próximamente</option>'+(PERM.admin?'<option value="admin">Administración de usuarios</option>':'');ms.value=S.tab==='A'?'admin':'rutas'}
+  ['newBtn'].forEach(id=>{if($(id))$(id).style.display=can('nuevo')?'':'none'});
+  ['dlx','dl','dlSeg','dlFich'].forEach(id=>{if($(id)&&!can('excel'))$(id).style.display='none'});
+  if($('nearBtn'))$('nearBtn').style.display=tabOk('M')?'':'none';
+  if($('fAsigW')){$('fAsigW').hidden=!PERM.admin;if(PERM.admin){const f=$('fAsig');const opts='<option value="">Todos</option><option value="__sin">Sin asignar</option>'+USRS.filter(u=>u.rol!=='Administrador').map(u=>`<option value="${esc(u.usuario)}">${esc(u.nombre||u.usuario)}</option>`).join('');if(f.dataset.o!==opts){f.innerHTML=opts;f.dataset.o=opts}f.value=S.asig}}
+}
+/* ---- administración ---- */
+let USRS=(window.__RAWJ&&window.__RAWJ.usuarios)||[];
+const PEST_N={H:'Hoy',C:'Centros',M:'Médicos',P:'Plan del día',R:'Rutas',S:'Seguimiento'};
+const ACC_N={editar:'Editar fichas',registrar:'Registrar visitas y check-in',urgente:'Marcar urgentes',estado:'Cambiar estado comercial',nuevo:'Dar de alta médicos',excel:'Descargar Excel y CSV'};
+const ROLES_UI={'Administrador':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{editar:1,registrar:1,urgente:1,estado:1,nuevo:1,excel:1}},'Comercial':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{editar:1,registrar:1,urgente:1,estado:1,nuevo:1,excel:0}},'Solo consulta':{mods:{rutas:true},tabs:{H:1,C:1,M:1,P:1,R:1,S:1},acc:{}}};
+async function adminApi(params){const c=window.__cfg();const j=await window.__api({s:c.t,...params},40000);if(!j.ok&&j.error==='sesion'){sesionCaducada();throw new Error('sesión')}return j}
+function renderA(){
+  $('count').innerHTML='';
+  const nAs=u=>DATA.filter(d=>(d.asig||[]).includes(u)).length;
+  $('admin').innerHTML=`<div class="dayhead"><h3>Usuarios</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sec" id="aRef">Actualizar</button><button type="button" class="btn" id="aNew">+ Nuevo usuario</button></div></div>
+   <p class="sm">Los comerciales solo ven los médicos que les asignes y sus propias visitas. El administrador lo ve todo.</p>
+   <div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Médicos asignados</th><th>Último acceso</th><th></th></tr></thead><tbody>
+   ${USRS.map(u=>`<tr><td><div class="nm">${esc(u.nombre||u.usuario)}</div><div class="sm">${esc(u.usuario)}${u.email?' · '+esc(u.email):''}</div></td><td>${esc(u.rol)}</td>
+     <td>${u.activo?'<span class="estb" data-e="Prescribe">Activo</span>':'<span class="estb" data-e="No interesado">Desactivado</span>'}${u.cambiar?'<div class="sm">Pendiente de cambiar contraseña</div>':''}</td>
+     <td>${u.rol==='Administrador'?'<span class="sm">Todos</span>':nAs(u.usuario).toLocaleString('es')}</td><td class="sm">${esc(u.acceso||'—')}</td>
+     <td style="white-space:nowrap"><button class="reg" data-ue="${esc(u.usuario)}">Editar</button> <button class="reg" data-ur="${esc(u.usuario)}">Contraseña</button>${u.rol!=='Administrador'?` <button class="reg" data-ua="${esc(u.usuario)}">Asignar médicos</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Sin usuarios</td></tr>'}
+   </tbody></table></div>`;
+}
+function permBoxes(p,dis){return `<div class="pgrid"><div><div class="sm"><b>Módulos</b></div><label class="urgchk"><input type="checkbox" data-pm="rutas" ${p.mods&&p.mods.rutas?'checked':''} ${dis}> Rutas y médicos</label></div>
+  <div><div class="sm"><b>Pestañas</b></div>${TABS_ORD.map(k=>`<label class="urgchk"><input type="checkbox" data-pt="${k}" ${p.tabs&&p.tabs[k]?'checked':''} ${dis}> ${PEST_N[k]}</label>`).join('')}</div>
+  <div><div class="sm"><b>Acciones</b></div>${Object.keys(ACC_N).map(k=>`<label class="urgchk"><input type="checkbox" data-pa="${k}" ${p.acc&&p.acc[k]?'checked':''} ${dis}> ${ACC_N[k]}</label>`).join('')}</div></div>`}
+function openUser(u){
+  const nuevo=!u;u=u||{usuario:'',nombre:'',email:'',rol:'Comercial',activo:true,perm:ROLES_UI['Comercial']};
+  const p=u.rol==='Administrador'?ROLES_UI['Administrador']:(u.perm||ROLES_UI[u.rol]);
+  $('ubody').innerHTML=`<h3>${nuevo?'Nuevo usuario':esc(u.nombre||u.usuario)}</h3>
+   <div class="grid2"><div><label for="uN">Nombre</label><input id="uN" value="${esc(u.nombre||'')}"></div><div><label for="uU">Usuario</label><input id="uU" value="${esc(u.usuario)}" ${nuevo?'':'disabled'} autocapitalize="off" spellcheck="false" placeholder="p. ej. lorena"></div></div>
+   <label for="uE">Email</label><input id="uE" type="email" value="${esc(u.email||'')}">
+   <div class="grid2"><div><label for="uR">Rol</label><select id="uR">${Object.keys(ROLES_UI).map(r=>`<option ${r===u.rol?'selected':''}>${r}</option>`).join('')}</select></div>
+   <div><label>Estado</label><div class="seg" id="uAct"><button type="button" data-v="1" aria-pressed="${u.activo!==false}">Activo</button><button type="button" data-v="0" aria-pressed="${u.activo===false}">Desactivado</button></div></div></div>
+   <div id="uPerm">${permBoxes(p,u.rol==='Administrador'?'disabled':'')}</div>
+   ${nuevo?'<label class="urgchk" style="margin-top:12px"><input type="checkbox" id="uMail" checked> Enviar las credenciales por email</label>':''}
+   <div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="button" class="btn" id="uSave">${nuevo?'Crear usuario':'Guardar'}</button></div><div id="uRes"></div>`;
+  $('uR').onchange=()=>{const r=$('uR').value;$('uPerm').innerHTML=permBoxes(ROLES_UI[r],r==='Administrador'?'disabled':'')};
+  $('uAct').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;$('uAct').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))};
+  $('uCancel').onclick=()=>$('udlg').close();
+  $('uSave').onclick=e=>busy(e.target,async()=>{
+    const d={usuario:$('uU').value.trim().toLowerCase(),nombre:$('uN').value.trim(),email:$('uE').value.trim(),rol:$('uR').value,activo:$('uAct').querySelector('[aria-pressed="true"]').dataset.v==='1',mail:!!($('uMail')&&$('uMail').checked),
+      perm:{mods:{rutas:!!$('ubody').querySelector('[data-pm="rutas"]').checked},tabs:{},acc:{}}};
+    $('ubody').querySelectorAll('[data-pt]').forEach(x=>d.perm.tabs[x.dataset.pt]=x.checked);$('ubody').querySelectorAll('[data-pa]').forEach(x=>d.perm.acc[x.dataset.pa]=x.checked);
+    if(!/^[a-z0-9._-]{3,30}$/.test(d.usuario)){$('uRes').innerHTML='<p class="warn">El usuario solo puede tener minúsculas, números, punto o guion (3 a 30).</p>';return}
+    try{const j=await adminApi({a:'usuario',d:JSON.stringify(d)});
+      if(!j.ok){$('uRes').innerHTML=`<p class="warn">${j.error==='no_propio'?'No puedes quitarte a ti mismo el rol de administrador ni desactivarte.':'No se ha podido guardar: '+esc(j.error)}</p>`;return}
+      const i=USRS.findIndex(x=>x.usuario===j.user.usuario);if(i>=0)USRS[i]=j.user;else USRS.push(j.user);renderA();
+      if(j.temporal){$('uRes').innerHTML=credBox(j.user,j.temporal,j.email);$('uSave').style.display='none';$('uCancel').textContent='Cerrar'}else{$('udlg').close();toast('Usuario guardado')}
+    }catch(err){$('uRes').innerHTML=`<p class="warn">No se ha podido conectar: ${esc(err.message)}</p>`}},'Guardando…');
+  $('udlg').showModal();
+}
+function credBox(u,temp,mail){const txt=`Acceso a DLC OS\n${location.origin+location.pathname}\nUsuario: ${u.usuario}\nContraseña temporal: ${temp}\n(te pedirá cambiarla la primera vez)`;
+  return `<div class="cred"><div class="sm">Contraseña temporal de <b>${esc(u.usuario)}</b>. Solo se muestra ahora:</div><div class="tmp">${esc(temp)}</div>
+   <div class="sm">${mail?'✓ También se ha enviado por email a '+esc(u.email):(u.email?'No se ha podido enviar el email; pásasela tú.':'Pásasela tú: no tiene email.')}</div>
+   <button type="button" class="btn sec" onclick="navigator.clipboard&&navigator.clipboard.writeText(${esc(JSON.stringify(txt))}).then(()=>toast('Credenciales copiadas'))">Copiar acceso completo</button></div>`}
+function openReset(usuario){const u=USRS.find(x=>x.usuario===usuario);if(!u)return;
+  $('ubody').innerHTML=`<h3>Restablecer contraseña</h3><p>Se generará una contraseña temporal para <b>${esc(u.nombre||u.usuario)}</b> y se cerrarán sus sesiones abiertas. Tendrá que cambiarla al entrar.</p>
+   ${u.email?`<label class="urgchk"><input type="checkbox" id="rMail" checked> Enviarla también por email a ${esc(u.email)}</label>`:'<p class="sm">No tiene email: tendrás que pasársela tú.</p>'}
+   <div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="button" class="btn" id="rGo">Restablecer</button></div><div id="uRes"></div>`;
+  $('uCancel').onclick=()=>$('udlg').close();
+  $('rGo').onclick=e=>busy(e.target,async()=>{try{const j=await adminApi({a:'reset',u:usuario,mail:$('rMail')&&$('rMail').checked?'1':'0'});
+    if(!j.ok){$('uRes').innerHTML=`<p class="warn">No se ha podido: ${esc(j.error)}</p>`;return}u.cambiar=true;renderA();$('uRes').innerHTML=credBox(u,j.temporal,j.email);$('rGo').style.display='none';$('uCancel').textContent='Cerrar'}
+    catch(err){$('uRes').innerHTML=`<p class="warn">No se ha podido conectar: ${esc(err.message)}</p>`}},'Restableciendo…');
+  $('udlg').showModal();}
+/* ---- asignación de médicos ---- */
+function asignBar(f){const u=USRS.find(x=>x.usuario===S.asignando);if(!u){$('asignBar').hidden=true;return}
+  const n=DATA.filter(d=>(d.asig||[]).includes(u.usuario)).length;
+  $('asignBar').hidden=false;$('asignBar').innerHTML=`<span>Asignando médicos a <b>${esc(u.nombre||u.usuario)}</b> · ${n.toLocaleString('es')} asignados. Filtra y usa los botones, o marca médico a médico.</span>
+   <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-asall="add">Asignar los ${f.length.toLocaleString('es')} de la lista</button><button type="button" class="btn sec" data-asall="quitar">Quitar los ${f.length.toLocaleString('es')} de la lista</button><button type="button" class="btn sec" data-asend="1">Terminar</button></span>`}
+async function asignar(codes,modo,btn){const u=S.asignando;if(!u||!codes.length)return;
+  if(codes.length>20&&!confirm(`${modo==='quitar'?'¿Quitar':'¿Asignar'} ${codes.length.toLocaleString('es')} médicos ${modo==='quitar'?'de':'a'} ${u}?`))return;
+  await busy(btn,async()=>{try{const j=await adminApi({a:'asignar',d:JSON.stringify({usuario:u,codes,modo})});if(!j.ok){toast('No se ha podido: '+j.error,true);return}
+    codes.forEach(c=>{const d=BYCODE.get(c);if(!d)return;d.asig=d.asig||[];if(modo==='quitar')d.asig=d.asig.filter(x=>x!==u);else if(!d.asig.includes(u))d.asig.push(u)});
+    toast(`${j.cambios} ${j.cambios===1?'médico actualizado':'médicos actualizados'}`);render()}catch(err){toast('Sin conexión: la asignación necesita internet',true)}},modo==='quitar'?'Quitando…':'Asignando…')}
+let PWD=null;
+function openPass(){$('ubody').innerHTML=`<h3>Cambiar contraseña</h3><form id="pwF"><label for="pw0">Contraseña actual</label><input id="pw0" type="password" autocomplete="current-password">
+  <label for="pw1">Nueva (mínimo 8 caracteres)</label><input id="pw1" type="password" autocomplete="new-password"><label for="pw2">Repite la nueva</label><input id="pw2" type="password" autocomplete="new-password">
+  <div class="acts"><button type="button" class="btn sec" id="uCancel">Cancelar</button><button type="submit" class="btn" id="pwGo">Cambiar</button></div></form><div id="uRes"></div>`;
+  $('uCancel').onclick=()=>$('udlg').close();
+  $('pwF').onsubmit=e=>{e.preventDefault();const a=$('pw0').value,b=$('pw1').value;if(b.length<8||b!==$('pw2').value){$('uRes').innerHTML='<p class="warn">La nueva debe tener 8 caracteres o más y coincidir.</p>';return}
+    busy($('pwGo'),async()=>{try{const j=await adminApi({a:'clave',o:await window.__hashPw(USER.usuario,a),nh:await window.__hashPw(USER.usuario,b)});
+      if(!j.ok){$('uRes').innerHTML=`<p class="warn">${j.error==='credenciales'?'La contraseña actual no es correcta.':j.error==='datos'?'La nueva debe ser distinta de la actual.':esc(j.error)}</p>`;return}$('udlg').close();toast('Contraseña cambiada')}
+      catch(err){$('uRes').innerHTML=`<p class="warn">No se ha podido conectar: ${esc(err.message)}</p>`}},'Cambiando…')};
+  $('udlg').showModal();}
+function setupAdmin(){
+  $('admin').addEventListener('click',e=>{if(e.target.id==='aNew'){openUser();return}if(e.target.id==='aRef'){busy(e.target,async()=>{try{const j=await adminApi({a:'usuarios'});if(j.ok){USRS=j.usuarios;renderA();toast('Lista actualizada')}}catch(err){toast('Sin conexión',true)}},'Actualizando…');return}
+    const ue=e.target.closest('[data-ue]');if(ue){openUser(USRS.find(x=>x.usuario===ue.dataset.ue));return}
+    const ur=e.target.closest('[data-ur]');if(ur){openReset(ur.dataset.ur);return}
+    const ua=e.target.closest('[data-ua]');if(ua){S.asignando=ua.dataset.ua;clearFilters();S.tab='M';S.limit=100;render();window.scrollTo({top:0})}});
+  $('asignBar').addEventListener('click',e=>{const a=e.target.closest('[data-asall]');if(a){asignar(filtered().map(([d])=>d.c),a.dataset.asall,a);return}if(e.target.closest('[data-asend]')){S.asignando=null;S.tab='A';render()}});
+  document.addEventListener('click',e=>{const t=e.target.closest('[data-as1]');if(t){e.preventDefault();const c=+t.dataset.as1,d=BYCODE.get(c);asignar([c],(d.asig||[]).includes(S.asignando)?'quitar':'add',t)}});
+  $('modSel').addEventListener('change',e=>{if(e.target.value==='admin'){S.tab='A'}else if(S.tab==='A'){S.tab=firstTab()}render();window.scrollTo({top:0})});
+  $('fAsig')&&$('fAsig').addEventListener('change',e=>{S.asig=e.target.value;reset0()});
 }
 
 /* ================= Plan del día ================= */
@@ -835,9 +953,9 @@ function renderP(){
     pl.stops.forEach((s,si)=>{
       if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
       const cc={ce:s.ct.ce,d:s.ct.d,m:s.ct.m,lat:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[0]:null,lon:s.ct.xy&&s.ct.docs.some(x=>x.c.lat)?s.ct.xy[1]:null};const mh=mapsHref(cc);
-      h+=`<li class="${si===nextI?'now':''}"><span class="tt">${hm(s.arr)}</span><div>${si===nextI?'<div class="sm" style="font-weight:700;color:var(--navy)">Siguiente parada</div>':''}<div class="an">${esc(s.ct.ce==='CONSULTA PRIVADA'||!s.ct.ce?'Consulta privada':s.ct.ce)}</div><div class="sm">${esc(s.ct.d||'Dirección por confirmar')} · ${esc(s.ct.m)} · ${s.tr} min de trayecto</div><div class="acts2" style="margin-top:6px">${mh?`<a class="act pri2" href="${esc(mh)}" target="_blank" rel="noopener">Ir a esta parada</a>`:''}${P.fecha===today()?(chkGet()&&chkGet().ce===(s.ct.ce||'Consulta privada')?`<button type="button" class="act" data-chkout="1">Termino aquí</button>`:`<button type="button" class="act" data-chkin="${esc(s.ct.ce||'Consulta privada')}" data-chkm="${esc(s.ct.m)}">Estoy aquí</button>`):''}</div>
+      h+=`<li class="${si===nextI?'now':''}"><span class="tt">${hm(s.arr)}</span><div>${si===nextI?'<div class="sm" style="font-weight:700;color:var(--navy)">Siguiente parada</div>':''}<div class="an">${esc(s.ct.ce==='CONSULTA PRIVADA'||!s.ct.ce?'Consulta privada':s.ct.ce)}</div><div class="sm">${esc(s.ct.d||'Dirección por confirmar')} · ${esc(s.ct.m)} · ${s.tr} min de trayecto</div><div class="acts2" style="margin-top:6px">${mh?`<a class="act pri2" href="${esc(mh)}" target="_blank" rel="noopener">Ir a esta parada</a>`:''}${P.fecha===today()&&can('registrar')?(chkGet()&&chkGet().ce===(s.ct.ce||'Consulta privada')?`<button type="button" class="act" data-chkout="1">Termino aquí</button>`:`<button type="button" class="act" data-chkin="${esc(s.ct.ce||'Consulta privada')}" data-chkm="${esc(s.ct.m)}">Estoy aquí</button>`):''}</div>
        <ul class="plist">${s.seq.map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${x.d.top?'<span class="topb">Urgente</span> ':''}${esc(x.d.n)}</div><div class="sm">${hm(x.at)} · ${esc(x.d.e||'')}${x.known?' · pasa consulta hoy':''}${x.d.vn?' · '+esc(x.d.vn):''}</div></span>
-       <span style="display:flex;gap:6px">${telHref(x.c.tel||x.d.tel)?`<a class="reg" href="${telHref(x.c.tel||x.d.tel)}">Llamar</a>`:''}<button class="reg" data-edit="${x.d.c}">Editar</button><button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button><button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
+       <span style="display:flex;gap:6px">${telHref(x.c.tel||x.d.tel)?`<a class="reg" href="${telHref(x.c.tel||x.d.tel)}">Llamar</a>`:''}${can('editar')?`<button class="reg" data-edit="${x.d.c}">Editar</button>`:''}${can('registrar')?`<button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button>`:''}<button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
     });
     h+=`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Llegada a Santpedor (${pl.home} min de vuelta)</li></ol>`;
     if(pl.miss.length)h+=`<details class="anchor"><summary><span><span class="an">Prioritarios que no entran este día</span><div class="sm">Urgentes y contactos de Corachan, con el motivo</div></span><span class="ac">${pl.miss.length}</span></summary><ul class="plist">${pl.miss.slice(0,60).map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${esc(x.d.n)}</div><div class="sm">${esc(x.reason)}${x.d.vn?' · '+esc(x.d.vn):''}</div></span><span></span></li>`).join('')}</ul></details>`;
@@ -920,7 +1038,7 @@ async function saveEdit(){
 function addDoctor(nd){DATA.push(nd);BYCODE.set(nd.c,nd);ORIG.set(nd.c,JSON.stringify({cons:nd.cons,e:nd.e,tel:nd.tel,q:nd.q,a:nd.a}))}
 function newDoctorObj(code){return {c:code,t:'Persona',n:'',e:'',a:'Aparato locomotor y dolor',car:'',eq:'',ub:'',p:'BARCELONA',m:'BARCELONA',ce:'',g:'',d:'',cp:'',di:'',tel:'',q:'Confirmada con dirección',st:'Dónde confirmado',url:'',
   cons:[{ce:'',g:'',m:'BARCELONA',p:'BARCELONA',d:'',di:null,cp:'',tel:'',dy:['','','','',''],cf:true}],top:'',cor:0,vn:'',sl:[],ed:'',contacto:'',nota:'',nuevo:true}}
-function openNew(){const c=Number('9'+String(Date.now()).slice(-10));openEdit(c,newDoctorObj(c))}
+function openNew(){if(!can('nuevo'))return;const c=Number('9'+String(Date.now()).slice(-10));openEdit(c,newDoctorObj(c))}
 function setUrgent(code,on,motivo){const d=BYCODE.get(code);if(!d)return;
   d.top=on?(motivo||'Marcado desde la app'):'';
   const pr=on?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':'');
@@ -943,7 +1061,7 @@ function setupEdit(){
     const y=e.target.closest('.rmq .yes');if(y){y.closest('fieldset').remove();toast('Consulta quitada (se aplica al guardar la ficha)');return}
     const n=e.target.closest('.rmq .no');if(n){const lg=n.closest('legend');lg.querySelector('[data-rm]').hidden=false;n.closest('.rmq').remove()}});
   $('eCancel').onclick=()=>$('edlg').close(); $('eForm').onsubmit=e=>{e.preventDefault();saveEdit()};
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-edit]');if(b){e.preventDefault();openEdit(+b.dataset.edit)}});
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-edit]');if(b){e.preventDefault();if(can('editar'))openEdit(+b.dataset.edit)}});
 }
 
 /* ---- desplegables propios (sustituyen a datalist, que no funciona en todos los visores) ---- */
@@ -983,8 +1101,8 @@ function renderFichas(){
 
 
 /* ================= Sincronización con la hoja de Google ================= */
-const CFG=JSON.parse(localStorage.getItem('dlc_cfg')||'{}');
-const OBX_KEY='dlc_outbox';
+const OBX_KEY='dlc_outbox_'+(USER.usuario||'anon');
+try{const old=localStorage.getItem('dlc_outbox');if(old&&!localStorage.getItem(OBX_KEY)){localStorage.setItem(OBX_KEY,old)}localStorage.removeItem('dlc_outbox')}catch(e){}
 function obxGet(){try{return JSON.parse(localStorage.getItem(OBX_KEY)||'[]')}catch(e){return []}}
 function obxSet(a){localStorage.setItem(OBX_KEY,JSON.stringify(a));syncUI()}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -1006,22 +1124,25 @@ let flushing=false,lastSync=localStorage.getItem('dlc_lastsync')||'';
 async function flush(){
   if(flushing||!navigator.onLine||!CFG.url)return; const box=obxGet(); if(!box.length){syncUI();return}
   flushing=true;syncUI();
-  const okIds=new Set();
+  const okIds=new Set(),denied=[];
   try{
     if(localStorage.getItem('dlc_mode')!=='jsonp'){
       try{
-        const r=await fetch(CFG.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
-        const j=JSON.parse(await r.text()); if(j.ok)j.results.filter(x=>x.ok).forEach(x=>okIds.add(x.id));
+        const r=await fetch(CFG.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({s:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
+        const j=JSON.parse(await r.text()); if(!j.ok&&j.error==='sesion'){sesionCaducada();return} if(j.ok)j.results.forEach(x=>{if(x.ok)okIds.add(x.id);else if(x.error==='permiso')denied.push(x.id)});
       }catch(e){console.warn('POST no disponible, uso el método alternativo',e)}
     }
     for(const o of box){ // método alternativo (y comprobación de lo que el POST no confirmó)
       if(okIds.has(o.id))continue;
       const d=JSON.stringify({ops:[{id:o.id,tipo:o.tipo,data:o.data}]});
-      const j=await window.__jsonp(CFG.url+'?t='+encodeURIComponent(CFG.t)+'&a=op&d='+encodeURIComponent(d),60000);
-      if(j&&j.ok)j.results.filter(x=>x.ok).forEach(x=>okIds.add(x.id));
+      if(denied.includes(o.id))continue;
+      const j=await window.__jsonp(CFG.url+'?s='+encodeURIComponent(CFG.t)+'&a=op&d='+encodeURIComponent(d),60000);
+      if(j&&!j.ok&&j.error==='sesion'){sesionCaducada();return}
+      if(j&&j.ok)j.results.forEach(x=>{if(x.ok)okIds.add(x.id);else if(x.error==='permiso')denied.push(x.id)});
     }
   }catch(e){console.warn('Sin sincronizar',e)}
   finally{
+    if(denied.length){obxSet(obxGet().filter(o=>!denied.includes(o.id)));toast(denied.length===1?'Un cambio no se ha guardado: no tienes permiso':denied.length+' cambios no se han guardado: no tienes permiso',true)}
     if(okIds.size){obxSet(obxGet().filter(o=>!okIds.has(o.id)));lastSync=new Date().toISOString();localStorage.setItem('dlc_lastsync',lastSync)}
     flushing=false;syncUI()}
 }
@@ -1060,10 +1181,12 @@ async function setupDb(){
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
   $('syncBtn').onclick=e=>busy(e.target,async()=>{await flush();await checkUpdates();toast(obxGet().length?'Quedan cambios pendientes: sin conexión':'Todo sincronizado',!!obxGet().length)},'Sincronizando…');
-  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').innerHTML=`DLC OS · versión ${esc(window.__APPVER||'')} · ${esc(datosTxt()||'sin datos')} · <a href="#" id="cfgVer">Buscar actualizaciones</a>`;$('cfgVer').onclick=ev=>{ev.preventDefault();checkVersion(true)};$('cfgDlg').showModal()};
+  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUser').innerHTML=`<b>${esc(USER.nombre||USER.usuario)}</b> <span class="sm">· usuario ${esc(USER.usuario)} · ${esc(USER.rol||'')}</span>`;$('cfgAdmin').hidden=!USER.perm.admin;$('cfgXlsx').hidden=!can('excel');$('cfgMsg').innerHTML=`DLC OS · versión ${esc(window.__APPVER||'')} · ${esc(datosTxt()||'sin datos')} · <a href="#" id="cfgVer">Buscar actualizaciones</a>`;$('cfgVer').onclick=ev=>{ev.preventDefault();checkVersion(true)};$('cfgDlg').showModal()};
   $('cfgClose').onclick=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);$('cfgDlg').close();render()};
   $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
-  $('cfgSave').onclick=()=>{const u=$('cfgUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)){$('cfgMsg').textContent='La dirección debe empezar por https://script.google.com/macros/s/ y acabar en /exec.';return}localStorage.setItem('dlc_cfg',JSON.stringify({url:u,t:$('cfgT').value.trim()}));location.reload()};
+  $('cfgOut').onclick=async()=>{if(obxGet().length){await flush()}if(obxGet().length&&!confirm('Hay cambios sin enviar en este dispositivo. Si cierras sesión se enviarán la próxima vez que entres con tu usuario. ¿Cerrar sesión?'))return;window.__logout()};
+  $('cfgPass').onclick=()=>{$('cfgDlg').close();openPass()};
+  $('cfgAdmin').onclick=()=>{$('cfgDlg').close();S.tab='A';render();window.scrollTo({top:0})};
   $('cfgReload').onclick=e=>busy(e.target,async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} await (window.__reloadData&&window.__reloadData())},'Descargando…');
   $('newDataBtn').onclick=()=>location.reload();
   checkUpdates();

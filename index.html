@@ -348,6 +348,17 @@ h3[tabindex="-1"]:focus{outline:none}
 .vwhen{display:flex;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-top:10px;font-weight:600;color:var(--navy)}
 .vwhen .sm{font-weight:400}
 @media (max-width:760px){ .topbar{margin:0 0 10px} .topbar .count{margin-left:auto} }
+
+/* ---------- v1.4: acceso y administración ---------- */
+#boot form label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 3px}
+.acct{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}
+.pgrid .urgchk{font-weight:500;color:var(--ink);margin:6px 0!important;font-size:14px}
+.pgrid input:disabled+*{opacity:.6}
+.cred{margin-top:14px;background:#DCF1E6;border:1px solid #B9E2CC;border-radius:12px;padding:12px;display:grid;gap:8px}
+.cred .tmp{font:700 22px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;color:#1F6F4A;user-select:all}
+.asign{background:#E6EEF6;color:var(--navy);border-bottom:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#udlg .seg{border-color:var(--line)}#udlg .seg button{color:var(--navy)}#udlg .seg button[aria-pressed=true]{background:var(--navy);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -380,6 +391,7 @@ h3[tabindex="-1"]:focus{outline:none}
           <button role="tab" id="tabP" aria-selected="false">Plan del día</button>
           <button role="tab" id="tabR" aria-selected="false">Rutas</button>
           <button role="tab" id="tabS" aria-selected="false">Seguimiento</button>
+          <button role="tab" id="tabA" aria-selected="false" style="display:none">Administración</button>
         </div>
         <div class="count" id="count"></div>
         <button type="button" class="fbtn" id="fBtn">Filtros</button>
@@ -398,6 +410,7 @@ h3[tabindex="-1"]:focus{outline:none}
       <div class="f"><label for="fTipo">Tipo</label><select id="fTipo"></select></div>
       <div class="f"><label for="fTexto">Nombre contiene</label><input type="text" id="fTexto"></div>
       <div class="f checks"><label><input type="checkbox" id="fTop"> Solo médicos urgentes</label></div>
+      <div class="f" id="fAsigW" hidden><label for="fAsig">Asignado a</label><select id="fAsig"></select></div>
       <div class="f"><label for="fEst">Estado comercial</label><select id="fEst"><option value="">Todos</option><option>Sin contactar</option><option>Presentado</option><option>Interesado</option><option>Prescribe</option><option>No interesado</option></select></div>
       <div class="f"><label for="fSeg">Seguimiento</label><select id="fSeg"><option value="">Todos</option><option value="sin">Sin visitar</option><option value="vis">Visitados</option><option value="prox">Con próxima acción</option></select></div>
     </aside>
@@ -406,6 +419,7 @@ h3[tabindex="-1"]:focus{outline:none}
 
       <div class="chips" id="chips"></div>
 
+      <section class="panel" id="viewA" hidden><div id="admin" style="padding:0 14px 14px"></div></section>
       <section class="panel" id="viewH" hidden><div id="hoy" style="padding:14px"></div></section>
       <section class="panel" id="viewC" hidden>
         <div class="opts">
@@ -420,6 +434,7 @@ h3[tabindex="-1"]:focus{outline:none}
       </section>
 
       <section class="panel" id="viewM" hidden>
+        <div class="asign" id="asignBar" hidden></div>
         <div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="mapBtn">Ver mapa</button><button class="dl" id="nearBtn">Cerca de mí</button><button class="dl" id="newBtn">+ Nuevo médico</button></span>
@@ -495,36 +510,51 @@ h3[tabindex="-1"]:focus{outline:none}
 <textarea id="shText" rows="14" style="width:100%;font:13.5px/1.45 ui-monospace,Menlo,Consolas,monospace"></textarea>
 <label for="shTo">Enviar por email a (opcional)</label><input id="shTo" type="email" placeholder="nombre@empresa.com">
 <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="shClose">Cerrar</button><button type="button" class="btn sec" id="shWa">WhatsApp</button><button type="button" class="btn sec" id="shMail">Email</button><button type="button" class="btn" id="shCopy">Copiar</button></div></div></dialog>
+<dialog id="udlg"><div class="fi" style="padding:18px" id="ubody"></div></dialog>
 <dialog id="qdlg"><div class="fi" style="padding:18px"><div id="qbody"></div><div class="acts"><button type="button" class="btn sec" id="qClose">Cerrar</button></div></div></dialog>
 <dialog id="cfgDlg"><div class="fi" style="padding:18px">
   <h3>Ajustes</h3>
-  <label for="cfgUrl">Dirección de la conexión (URL que acaba en /exec)</label><input id="cfgUrl" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url">
-  <label for="cfgT">Clave</label><input id="cfgT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
+  <div class="acct" id="cfgUser"></div>
+  <div class="acts" style="justify-content:flex-start;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn sec" id="cfgPass">Cambiar contraseña</button><button type="button" class="btn sec" id="cfgAdmin" hidden>Administración de usuarios</button><button type="button" class="btn sec" id="cfgOut">Cerrar sesión</button></div>
   <label for="cfgMaps">App de mapas para "Cómo llegar"</label><select id="cfgMaps"><option value="google">Google Maps</option><option value="apple">Apple Maps</option><option value="waze">Waze</option></select>
-  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec deskonly" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
+  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec deskonly" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button></div>
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.3.4';
+window.__APPVER='1.4.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
 const idb={db:null,open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('dlc-os',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
   async get(k){const db=await this.open();return new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})},
   async set(k,v){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
-function cfg(){try{return JSON.parse(localStorage.getItem('dlc_cfg')||'null')}catch(e){return null}}
+function url0(){try{const c=JSON.parse(localStorage.getItem('dlc_cfg')||'null');if(c&&c.url)return c.url}catch(e){}return DEF_URL}
+function ses(){try{return JSON.parse(localStorage.getItem('dlc_ses')||'null')}catch(e){return null}}
+function cfg(){const s=ses();return {url:url0(),t:s&&s.s,user:s&&s.user}}
+window.__cfg=cfg;
 function okUrl(u){return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u||'')}
 function jsonp(url,ms){return new Promise((res,rej)=>{const cb='__dlc'+Date.now()+Math.floor(Math.random()*1e6);const sc=document.createElement('script');
   const done=()=>{clearTimeout(t);try{delete window[cb]}catch(e){window[cb]=undefined}sc.remove()};const t=setTimeout(()=>{done();rej(new Error('sin respuesta'))},ms||90000);
   window[cb]=d=>{done();res(d)};sc.onerror=()=>{done();rej(new Error('no se pudo cargar'))};sc.src=url+(url.indexOf('?')<0?'?':'&')+'cb='+cb;document.head.appendChild(sc)})}
 window.__jsonp=jsonp;
 async function viaFetch(u){const r=await fetch(u,{credentials:'omit',cache:'no-store'});const txt=await r.text();try{return JSON.parse(txt)}catch(e){let h='';try{h=new URL(r.url).hostname}catch(_){}throw new Error('respuesta '+r.status+' desde '+h)}}
-async function fetchAll(c){
-  if(!okUrl(c.url))throw new Error('La dirección de la conexión no es válida. Debe empezar por https://script.google.com/macros/s/ y acabar en /exec.');
-  const u=c.url+'?t='+encodeURIComponent(c.t)+'&a=all'; let j,err1='';
+/* llamada genérica al servidor (GET + método alternativo) */
+async function api(params,ms){
+  const q=Object.entries(params).filter(([k,v])=>v!==undefined&&v!==null).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');
+  const u=url0()+'?'+q; let j,err1='';
   if(localStorage.getItem('dlc_mode')!=='jsonp'){try{j=await viaFetch(u);localStorage.setItem('dlc_mode','fetch')}catch(e){err1=e.message}}
-  if(!j){try{j=await jsonp(u);localStorage.setItem('dlc_mode','jsonp')}catch(e){throw new Error('Google no ha devuelto los datos. Detalle para soporte: '+(err1||'fetch omitido')+' · alternativo: '+e.message)}}
-  if(!j.ok)throw new Error(j.error==='clave'?'La clave no es correcta.':'Error de la hoja: '+j.error);return j}
+  if(!j){try{j=await jsonp(u,ms);localStorage.setItem('dlc_mode','jsonp')}catch(e){throw new Error('Google no ha respondido. Detalle para soporte: '+(err1||'fetch omitido')+' · alternativo: '+e.message)}}
+  return j}
+window.__api=api;
+async function sha256hex(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+const hashPw=(u,p)=>sha256hex('dlc|'+String(u).trim().toLowerCase()+'|'+p);
+window.__hashPw=hashPw;
+class SesionError extends Error{}
+async function fetchAll(c){
+  if(!c.t)throw new SesionError('sin sesión');
+  const j=await api({s:c.t,a:'all'});
+  if(!j.ok){if(j.error==='sesion')throw new SesionError('Tu sesión ha caducado o se ha cerrado. Vuelve a entrar.');throw new Error('Error de la hoja: '+j.error)}
+  return j}
 function tbl(o){const I={};(o.h||[]).forEach((h,i)=>I[h]=i);return (o.rows||[]).map(r=>{const x={};for(const h in I)x[h]=r[I[h]]??'';return x})}
 function transform(raw){
   const M=tbl(raw.MEDICOS),C=tbl(raw.CONSULTAS),N=tbl(raw.NOTAS_VISITA); const DI={L:0,M:1,X:2,J:3,V:4};
@@ -536,31 +566,78 @@ function transform(raw){
     return {c,t:x['TIPO']||'Persona',n:x['NOMBRE COMPLETO']||'',e:x['ESPECIALIDAD']||'',a:x['ÁREA']||'',car:x['CARGO']||'',eq:x['EQUIPO O UNIDAD']||'',ub:x['UBICACIÓN EN EL CENTRO']||'',
       p:x['PROVINCIA']||'',m:x['MUNICIPIO']||'',ce:x['CENTRO']||'',g:x['GRUPO']||x['CENTRO']||'',d:x['DIRECCIÓN']||'',cp:String(x['CP']||''),di:x['DISTRITO']||'',tel:x['TELÉFONO']||'',
       q:x['CALIDAD DE LA UBICACIÓN']||'Sin verificar: dato original sin dirección',st:x['ESTADO DE BÚSQUEDA']||'',url:x['URL FICHA']||'',cons:cs,
-      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||'',est:x['ESTADO COMERCIAL']||''}});
+      top:pr.startsWith('Urgente · ')?pr.slice(10):'',cor:pr==='Corachan · por visitar'?1:0,vn:x['CUÁNDO VISITAR (NOTA)']||'',sl:notas.get(c)||[],ed:x['FICHA EDITADA']||'',contacto:x['CONTACTO']||'',nota:x['NOTA']||'',est:x['ESTADO COMERCIAL']||'',asig:String(x['ASIGNADO']||'').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean)}});
 }
 function boot(raw){
-  window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.3.4'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
+  const s=document.createElement('script'); s.src='app.js?v=1.4.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
-window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
+window.__refreshData=async()=>{let j;try{j=await fetchAll(cfg())}catch(e){if(e instanceof SesionError){window.__sesionCaducada&&window.__sesionCaducada()}throw e}
+  const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
-window.__reloadData=async()=>{try{await idb.set('raw',await fetchAll(cfg()));location.reload()}catch(e){alert('No se han podido descargar los datos: '+e.message)}};
-function setupForm(msg){
-  document.getElementById('bootCard').innerHTML=`<h2>DLC OS · Configuración</h2><p class="sm">Solo hace falta la primera vez en cada dispositivo.</p>
-   <label for="bU">Dirección de la conexión</label><input id="bU" value="${DEF_URL}" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url" name="dlc-conexion">
-   <label for="bT">Clave</label><input id="bT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off" name="dlc-clave">
-   <div class="acts"><button class="btn" id="bGo">Conectar</button></div><p class="sm" id="bMsg" style="color:#B7791F">${msg||''}</p>`;
-  document.getElementById('bGo').onclick=async()=>{const c={url:document.getElementById('bU').value.trim(),t:document.getElementById('bT').value.trim()};if(!c.t){document.getElementById('bMsg').textContent='Falta la clave.';return}
-    const m=document.getElementById('bMsg');m.innerHTML='<span class="spin"></span> Descargando los datos de la hoja…';
-    try{const j=await fetchAll(c);localStorage.setItem('dlc_cfg',JSON.stringify(c));await idb.set('raw',j);location.reload()}catch(e){m.textContent='No se ha podido conectar: '+e.message}};
+window.__reloadData=async()=>{try{await idb.set('raw',await fetchAll(cfg()));location.reload()}catch(e){if(e instanceof SesionError){window.__logout&&window.__logout(true);return}alert('No se han podido descargar los datos: '+e.message)}};
+window.__logout=async(keep)=>{try{const c=cfg();if(c.t&&navigator.onLine&&!keep)await api({s:c.t,a:'logout'},15000)}catch(e){}try{await idb.set('raw',null)}catch(e){}localStorage.removeItem('dlc_ses');location.replace(location.pathname)};
+const card=()=>document.getElementById('bootCard');
+const logoH='<img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px">';
+function msgEl(t,err){const m=document.getElementById('bMsg');if(m){m.style.color=err?'#B7791F':'var(--muted)';m.innerHTML=t}}
+async function entrar(j,passPlano){
+  localStorage.setItem('dlc_ses',JSON.stringify({s:j.s,user:j.user}));
+  if(j.user.cambiar){cambioForm(passPlano);return}
+  await descargar();
+}
+async function descargar(){msgEl('<span class="spin"></span> Descargando tus datos…');
+  try{const raw=await fetchAll(cfg());await idb.set('raw',raw);boot(raw)}catch(e){if(e instanceof SesionError){localStorage.removeItem('dlc_ses');loginForm(e.message);return}msgEl('No se han podido descargar los datos: '+e.message,true)}}
+function loginForm(msg){
+  card().innerHTML=logoH+`<h2>Acceso</h2><form id="lf" autocomplete="on"><label for="lu">Usuario</label><input id="lu" name="username" autocomplete="username" autocapitalize="off" spellcheck="false">
+   <label for="lp">Contraseña</label><input id="lp" type="password" name="password" autocomplete="current-password">
+   <div class="acts"><button class="btn" id="lgo" type="submit">Entrar</button></div></form><p class="sm" id="bMsg" style="color:#B7791F">${msg||''}</p><p class="sm" id="bSetup"></p>`;
+  document.getElementById('lf').onsubmit=async e=>{e.preventDefault();const u=document.getElementById('lu').value.trim(),p=document.getElementById('lp').value;
+    if(!u||!p){msgEl('Escribe tu usuario y contraseña.',true);return}msgEl('<span class="spin"></span> Comprobando…');
+    try{const j=await api({a:'login',u,h:await hashPw(u,p)},30000);
+      if(!j.ok){msgEl(j.error==='bloqueado'?'Demasiados intentos. Espera 15 minutos y vuelve a probar.':'Usuario o contraseña incorrectos.',true);return}
+      await entrar(j,p)}catch(err){msgEl('No se ha podido conectar: '+err.message,true)}};
+  setTimeout(()=>document.getElementById('lu').focus(),50);
+  if(navigator.onLine)api({a:'inicio'},20000).then(j=>{if(j&&j.ok&&!j.hayUsuarios){document.getElementById('bSetup').innerHTML='Primera vez: <a href="#" id="goSetup">crear el administrador</a>';document.getElementById('goSetup').onclick=e=>{e.preventDefault();setupAdmin()}}}).catch(()=>{});
+}
+function setupAdmin(){
+  card().innerHTML=logoH+`<h2>Crear el administrador</h2><p class="sm">Solo se hace una vez. Necesitas la clave de instalación (la clave antigua de la app).</p><form id="sf">
+   <label for="sk">Clave de instalación</label><input id="sk" autocomplete="off" autocapitalize="off" spellcheck="false">
+   <label for="sn">Tu nombre</label><input id="sn" autocomplete="name">
+   <label for="se">Tu email</label><input id="se" type="email" autocomplete="email">
+   <label for="su">Usuario (minúsculas, sin espacios)</label><input id="su" autocomplete="username" autocapitalize="off" spellcheck="false">
+   <label for="sp">Contraseña (mínimo 8 caracteres)</label><input id="sp" type="password" autocomplete="new-password">
+   <label for="sp2">Repite la contraseña</label><input id="sp2" type="password" autocomplete="new-password">
+   <div class="acts"><button type="button" class="btn sec" id="sBack">Volver</button><button class="btn" type="submit">Crear y entrar</button></div></form><p class="sm" id="bMsg"></p>`;
+  document.getElementById('sBack').onclick=()=>loginForm();
+  document.getElementById('sf').onsubmit=async e=>{e.preventDefault();const v=id=>document.getElementById(id).value.trim();const u=v('su').toLowerCase(),p=document.getElementById('sp').value;
+    if(!/^[a-z0-9._-]{3,30}$/.test(u)){msgEl('El usuario solo puede tener minúsculas, números, punto o guion (3 a 30).',true);return}
+    if(p.length<8||p!==document.getElementById('sp2').value){msgEl('La contraseña debe tener 8 caracteres o más y coincidir en los dos campos.',true);return}
+    msgEl('<span class="spin"></span> Creando…');
+    try{const j=await api({a:'setup',k:v('sk'),u,n:v('sn'),e:v('se'),h:await hashPw(u,p)},30000);
+      if(!j.ok){msgEl(j.error==='clave'?'La clave de instalación no es correcta.':j.error==='ya_configurado'?'Ya hay un administrador. Entra con tu usuario.':'No se ha podido crear: '+j.error,true);return}
+      await entrar(j,p)}catch(err){msgEl('No se ha podido conectar: '+err.message,true)}};
+}
+function cambioForm(actual){
+  const u=(ses()||{}).user||{};
+  card().innerHTML=logoH+`<h2>Elige tu contraseña</h2><p class="sm">Hola ${u.nombre||''}. Es tu primer acceso: cambia la contraseña temporal por una tuya.</p><form id="cf">
+   <label for="cp1">Nueva contraseña (mínimo 8 caracteres)</label><input id="cp1" type="password" autocomplete="new-password">
+   <label for="cp2">Repítela</label><input id="cp2" type="password" autocomplete="new-password">
+   <div class="acts"><button class="btn" type="submit">Guardar y entrar</button></div></form><p class="sm" id="bMsg"></p>`;
+  document.getElementById('cf').onsubmit=async e=>{e.preventDefault();const p=document.getElementById('cp1').value;
+    if(p.length<8||p!==document.getElementById('cp2').value){msgEl('Debe tener 8 caracteres o más y coincidir en los dos campos.',true);return}
+    msgEl('<span class="spin"></span> Guardando…');
+    try{const c=cfg();const j=await api({s:c.t,a:'clave',o:await hashPw(u.usuario,actual),nh:await hashPw(u.usuario,p)},30000);
+      if(!j.ok){msgEl(j.error==='datos'?'La nueva contraseña debe ser distinta de la temporal.':'No se ha podido cambiar: '+j.error,true);return}
+      const sv=ses();sv.user.cambiar=false;localStorage.setItem('dlc_ses',JSON.stringify(sv));await descargar()}catch(err){msgEl('No se ha podido conectar: '+err.message,true)}};
 }
 (async()=>{
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-  const c=cfg(); if(!c||!c.url||!c.t){setupForm();return}
+  localStorage.removeItem('dlc_cfg_t');
+  const c=cfg(); if(!c.t){loginForm();return}
+  if(c.user&&c.user.cambiar){loginForm('Termina de configurar tu contraseña entrando de nuevo.');return}
   let raw=null; try{raw=await idb.get('raw')}catch(e){}
-  if(raw){boot(raw);return}
-  document.getElementById('bootMsg').innerHTML='<span class="spin"></span> Descargando los datos por primera vez…';
-  try{raw=await fetchAll(c);await idb.set('raw',raw);boot(raw)}catch(e){setupForm('No se han podido descargar los datos: '+e.message)}
+  if(raw&&raw.user&&c.user&&raw.user.usuario===c.user.usuario){boot(raw);return}
+  card().innerHTML=logoH+'<h2>DLC OS</h2><p class="sm" id="bMsg"></p>'; await descargar();
 })();
 </script>
 </body>
