@@ -231,7 +231,7 @@ html,body{max-width:100%;overflow-x:hidden}
   dialog form,dialog .fi{padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px))!important}
   .grid5{grid-template-columns:1fr}
   .grid5>div{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center}
-  .acts{position:sticky;bottom:0;background:var(--panel);padding:10px 0 4px}
+  dialog .acts{position:sticky;bottom:0;background:var(--panel);padding:10px 0 4px}
   .warn{margin:10px 0 0}
 }
 
@@ -351,6 +351,8 @@ h3[tabindex="-1"]:focus{outline:none}
 
 /* ---------- v1.4: acceso y administración ---------- */
 #boot form label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 3px}
+#boot .acts{position:static;display:flex;justify-content:flex-end;margin-top:16px}
+#boot input{font-size:16px;color:var(--ink);min-height:44px}
 .acct{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}
 .pgrid .urgchk{font-weight:500;color:var(--ink);margin:6px 0!important;font-size:14px}
@@ -521,7 +523,7 @@ h3[tabindex="-1"]:focus{outline:none}
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><img src="logo.png" alt="DLC Health Group" style="width:170px;display:block;margin:0 0 10px"><h2>DLC OS</h2><p class="sm" id="bootMsg"><span class="spin"></span> Cargando…</p></div></div>
 <script>
-window.__APPVER='1.4.0';
+window.__APPVER='1.4.1';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -550,11 +552,22 @@ async function sha256hex(t){const b=await crypto.subtle.digest('SHA-256',new Tex
 const hashPw=(u,p)=>sha256hex('dlc|'+String(u).trim().toLowerCase()+'|'+p);
 window.__hashPw=hashPw;
 class SesionError extends Error{}
-async function fetchAll(c){
+async function conReintento(fn,n){let e;for(let i=0;i<(n||3);i++){try{return await fn()}catch(err){e=err;await new Promise(r=>setTimeout(r,800*(i+1)))}}throw e}
+async function fetchAll(c,onProg){
   if(!c.t)throw new SesionError('sin sesión');
-  const j=await api({s:c.t,a:'all'});
-  if(!j.ok){if(j.error==='sesion')throw new SesionError('Tu sesión ha caducado o se ha cerrado. Vuelve a entrar.');throw new Error('Error de la hoja: '+j.error)}
-  return j}
+  const m=await conReintento(()=>api({s:c.t,a:'meta'},60000));
+  if(!m.ok){if(m.error==='sesion')throw new SesionError('Tu sesión ha caducado o se ha cerrado. Vuelve a entrar.');throw new Error('Error de la hoja: '+m.error)}
+  const out={ok:true,hora:m.hora,user:m.user};if(m.usuarios)out.usuarios=m.usuarios;
+  const TAM={MEDICOS:400,CONSULTAS:1200,NOTAS_VISITA:2000,VISITAS:1500,TIEMPOS:2000};
+  const tareas=[];Object.entries(m.tam||{}).forEach(([h,n])=>{out[h]={h:[],rows:[]};if(!n)tareas.push({h,o:0});for(let o=0;o<n;o+=TAM[h]||800)tareas.push({h,o})});
+  const partes={};let hechas=0;
+  const una=async t=>{const j=await conReintento(()=>api({s:c.t,a:'part',h:t.h,o:t.o,n:TAM[t.h]||800},60000));
+    if(!j.ok){if(j.error==='sesion')throw new SesionError('Tu sesión ha caducado. Vuelve a entrar.');throw new Error('Error de la hoja: '+j.error)}
+    partes[t.h+'|'+t.o]=j;hechas++;onProg&&onProg(hechas,tareas.length)};
+  let i=0;const worker=async()=>{while(i<tareas.length){const t=tareas[i++];await una(t)}};
+  await Promise.all([worker(),worker(),worker()]);
+  tareas.forEach(t=>{const j=partes[t.h+'|'+t.o];if(!out[t.h].h.length)out[t.h].h=j.h;out[t.h].rows.push(...j.rows)});
+  return out}
 function tbl(o){const I={};(o.h||[]).forEach((h,i)=>I[h]=i);return (o.rows||[]).map(r=>{const x={};for(const h in I)x[h]=r[I[h]]??'';return x})}
 function transform(raw){
   const M=tbl(raw.MEDICOS),C=tbl(raw.CONSULTAS),N=tbl(raw.NOTAS_VISITA); const DI={L:0,M:1,X:2,J:3,V:4};
@@ -570,7 +583,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__USER=raw.user||(ses()&&ses().user); window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.4.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.4.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{let j;try{j=await fetchAll(cfg())}catch(e){if(e instanceof SesionError){window.__sesionCaducada&&window.__sesionCaducada()}throw e}
   const old=await idb.get('raw');await idb.set('raw',j);
@@ -586,7 +599,7 @@ async function entrar(j,passPlano){
   await descargar();
 }
 async function descargar(){msgEl('<span class="spin"></span> Descargando tus datos…');
-  try{const raw=await fetchAll(cfg());await idb.set('raw',raw);boot(raw)}catch(e){if(e instanceof SesionError){localStorage.removeItem('dlc_ses');loginForm(e.message);return}msgEl('No se han podido descargar los datos: '+e.message,true)}}
+  try{const raw=await fetchAll(cfg(),(a,b)=>msgEl(`<span class="spin"></span> Descargando tus datos… ${Math.round(a/b*100)}%`));await idb.set('raw',raw);boot(raw)}catch(e){if(e instanceof SesionError){localStorage.removeItem('dlc_ses');loginForm(e.message);return}msgEl('No se han podido descargar los datos: '+e.message,true)}}
 function loginForm(msg){
   card().innerHTML=logoH+`<h2>Acceso</h2><form id="lf" autocomplete="on"><label for="lu">Usuario</label><input id="lu" name="username" autocomplete="username" autocapitalize="off" spellcheck="false">
    <label for="lp">Contraseña</label><input id="lp" type="password" name="password" autocomplete="current-password">
