@@ -1103,13 +1103,14 @@ function revisarDup(c){const d=BYCODE.get(c);if(!d)return;const cands=String(d.d
 let PREF=null;
 function prefsDraft(){const p=USER.prefs||{};return {salida:p.salida?{...p.salida}:{nombre:'Santpedor',dir:'Santpedor',lat:41.7833,lon:1.8414},vuelta:p.vuelta?{...p.vuelta}:null}}
 function puntoHTML(k,x,titulo,inner){const body=`<div class="grid2"><div><label>Nombre</label><input data-pn="${k}" value="${esc(x?x.nombre||'':'')}" placeholder="p. ej. Casa, Oficina Manresa"></div><div><label>Dirección</label><input data-pd="${k}" value="${esc(x?x.dir||'':'')}" placeholder="Calle, número y población"></div></div>
-  <div class="sm">${x&&x.lat&&!x._cambio?'<span class="okg">✓ Ubicado</span> '+esc(x.dir||''):'<span style="color:#B45309">Sin ubicar: pulsa "Buscar dirección"</span>'}</div>
+  <div class="pstate">${x&&x.lat&&!x._cambio?'<span class="okg">✓ Ubicado</span><span class="sm">'+esc(x.dir||'')+'</span>':'<span style="color:#B45309;font-weight:600">Sin ubicar: pulsa "Buscar dirección"</span>'}</div>
   <div class="kacts" style="justify-content:flex-start"><button type="button" class="btn sec" data-pgeo="${k}">Buscar dirección</button><button type="button" class="btn sec" data-pgps="${k}">Usar mi ubicación actual</button></div>`;
   return inner?body:`<div class="kcard"><div class="khead"><div><h4>${titulo}</h4><div class="sm">Dónde empiezas el día</div></div></div>${body}</div>`}
 function renderPrefs(){if(!PREF)PREF=prefsDraft();const mismo=!PREF.vuelta;
   return `<p class="sm">Se guardan en tu usuario y se aplican en todos tus dispositivos: Plan del día, rutas y recorridos de Google Maps.</p>
    <div class="kgrid">${puntoHTML('salida',PREF.salida,'Punto de salida')}
    <div class="kcard"><div class="khead"><div><h4>Punto de llegada</h4><div class="sm">Dónde terminas el día</div></div></div>
+    ${mismo?`<p class="sm" style="margin:0">Terminas en <b>${esc(PREF.salida.nombre||'el punto de salida')}</b>.</p>`:''}
     <div class="seg" id="pVm"><button type="button" data-vm="1" aria-pressed="${mismo}">Volver al punto de salida</button><button type="button" data-vm="0" aria-pressed="${!mismo}">Otro sitio</button></div>
     ${mismo?'':puntoHTML('vuelta',PREF.vuelta,'Llegada',true)}</div></div>
    <div class="kacts"><button type="button" class="btn sec" id="pfCancel">Descartar cambios</button><button type="button" class="btn" id="pfSave">Guardar preferencias</button></div>`}
