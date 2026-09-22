@@ -15,7 +15,7 @@ const OPT={prov:uniq(DATA.flatMap(d=>d.cons.map(c=>c.p).concat(d.p))),area:uniq(
 const grupoCount=cnt(DATA.flatMap(d=>[...new Set(d.cons.map(c=>c.g))]));
 OPT.grupo=[...grupoCount.entries()].filter(([g,n])=>n>=3).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
 
-const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'C',limit:100,rlimit:40,open:new Set(),route:null,soloLoc:true,picks:new Set(),top:false,corDay:null};
+const S={prov:'',muni:'',grupo:'',centro:'',area:'',esp:'',dias:[],cal:[],tipo:'',texto:'',seg:'',agr:'grupo',privada:false,tab:'H',limit:100,rlimit:40,open:new Set(),route:null,soloLoc:true,picks:new Set(),top:false,corDay:null};
 
 /* ---------- seguimiento (db) ---------- */
 const SEG=new Map(); let DB=null;
@@ -173,10 +173,12 @@ function renderFilters(){
 function visitCell(d){const s=segOf(d.c);if(!s||!s.ultima)return '<span class="sm">Sin visitar</span>';return `<span class="vis">${esc(s.res||'Visitado')}</span><div class="sm">${fmtDate(s.ultima)}</div>`}
 function render(){
   renderFilters();
-  for(const [k,id] of [['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
-  document.querySelector('aside').style.display=(S.tab==='R'||S.tab==='S'||S.tab==='P')?'none':'';
-  document.querySelector('.layout').style.gridTemplateColumns=(S.tab==='R'||S.tab==='S'||S.tab==='P')?'1fr':'';
-  if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
+  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']]){$(id).setAttribute('aria-selected',S.tab===k);$('view'+k).hidden=S.tab!==k;}
+  const noF=(S.tab==='R'||S.tab==='S'||S.tab==='P'||S.tab==='H');document.querySelector('aside').style.display=noF?'none':'';$('fBtn').style.visibility=noF?'hidden':'';
+  document.querySelectorAll('#bnav [data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===S.tab));
+  const nf=[S.prov,S.muni,S.grupo,S.centro,S.area,S.esp,S.tipo,S.texto,S.seg].filter(Boolean).length+(S.dias.length?1:0)+(S.cal.length?1:0)+(S.top?1:0);$('fBtn').textContent=nf?`Filtros · ${nf}`:'Filtros';$('fBtn').classList.toggle('on',!!nf);
+  document.querySelector('.layout').style.gridTemplateColumns=(noF||isMob())?'1fr':'';
+  if(S.tab==='H')renderH(); else if(S.tab==='C')renderC(); else if(S.tab==='M')renderM(); else if(S.tab==='P')renderP(); else if(S.tab==='R')renderR(); else renderS();
   $('foot').textContent='Datos del listado limpio del 21/09/2026. Los días de consulta que registres en las visitas se suman a los que ya había.';
 }
 function renderC(){
@@ -199,6 +201,7 @@ function renderM(){
     let h=`<tr class="row" data-c="${d.c}"><td><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div><div class="sm">${esc(d.e||'Sin especialidad')}${d.t==='Centro'?' · centro':''}${d.top?' · '+esc(d.top):''}</div></td><td>${esc(c.ce||'Sin centro')}<div class="sm">${c.g&&c.g!==c.ce?esc(c.g):''}</div></td><td>${esc(c.m||'')}</td><td>${esc(c.d||'')}</td><td style="white-space:nowrap">${esc(c.tel||'')}</td><td>${dayBadges(daysFor(d,c))}</td><td><span class="q ${qc}">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></td><td>${visitCell(d)}</td></tr>`;
     if(S.open.has(d.c))h+=detailRow(d,8);
     return h;}).join('')||`<tr><td colspan="8" class="empty">Ningún médico cumple estos filtros. Quita alguno para ver resultados.</td></tr>`;
+  $('mcards').innerHTML=isMob()?(f.slice(0,S.limit).map(([d,c])=>cardHTML(d,c)).join('')||'<div class="empty">Ningún médico cumple estos filtros.</div>'):'';
   $('more').hidden=f.length<=S.limit;
 }
 function detailRow(d,cols){
@@ -206,7 +209,7 @@ function detailRow(d,cols){
   return `<tr class="det"><td colspan="${cols}"><b>${d.cons.length} ${d.cons.length===1?'consulta':'consultas'}</b><ul>${d.cons.map(x=>`<li>${esc(x.ce||'Sin centro')} · ${esc(x.m||'')}${x.d?' · '+esc(x.d):''}${x.tel?' · '+esc(x.tel):''}${x.dy.some(Boolean)?' · '+DAYS.map((k,i)=>x.dy[i]?k+' '+esc(x.dy[i]):'').filter(Boolean).join(', '):''}${x.cf?'':' (sin verificar)'}</li>`).join('')}</ul>
   Código ${d.c}${d.car?' · '+esc(d.car):''} · Búsqueda: ${esc(d.st)}${d.url?` · <a href="${esc(d.url)}" target="_blank" rel="noopener">Ficha web</a>`:''}
   ${s&&s.visitas?`<div style="margin-top:6px"><b>Visitas:</b> ${s.visitas.map(v=>`${fmtDate(v.f)} ${esc(v.res)}${v.nota?' ('+esc(v.nota)+')':''}`).join(' · ')}</div>`:''}
-  <div style="margin-top:8px;display:flex;gap:8px"><button class="reg" data-edit="${d.c}">Editar ficha</button><button class="reg" data-reg="${d.c}">Registrar visita</button></div></td></tr>`;
+  ${actBtns(d,d.cons[0])}</td></tr>`;
 }
 function renderR(){
   $('count').innerHTML='';
@@ -266,7 +269,7 @@ function openDlg(code,ce){
   $('vFecha').value=today();fillSelect($('vRes'),RESULTS,'Elige resultado');$('vRes').value='';
   const ces=uniq(d.cons.map(c=>c.ce).concat(ce||[]));$('vCentro').innerHTML=ces.map(x=>`<option>${esc(x)}</option>`).join('');$('vCentro').value=ce||s.ce||ces[0]||'';
   const c=d.cons.find(x=>x.ce===$('vCentro').value)||d.cons[0];
-  $('vDias').innerHTML=DAYS.map((k,i)=>`<input aria-label="${DAYN[k]}" placeholder="${k}" data-k="${k}" value="${esc((s.horario&&s.horario[k])||(c&&c.dy[i])||'')}">`).join('');
+  $('vDias').innerHTML=DAYS.map((k,i)=>`<input aria-label="${DAYN[k]}" placeholder="${DAYN[k][0].toUpperCase()+DAYN[k].slice(1)}: p. ej. Mañana 9-13" data-k="${k}" value="${esc((s.horario&&s.horario[k])||(c&&c.dy[i])||'')}">`).join('');
   $('vContacto').value=s.contacto||'';$('vNota').value='';$('vProx').value=s.prox||'';$('vProxF').value=s.prox_f||'';$('dlgMsg').textContent='';
   $('dlgSave').disabled=!DB; $('dlg').showModal();
 }
@@ -302,7 +305,13 @@ function init(){
   on('privada','change',e=>{S.privada=e.target.checked;reset0()});on('soloLoc','change',e=>{S.soloLoc=e.target.checked;render()});
   on('reset','click',()=>{clearFilters();reset0()});
   on('chips','click',e=>{const b=e.target.closest('.chip');if(!b)return;const k=b.dataset.k;S[k]=Array.isArray(S[k])?[]:(typeof S[k]==='boolean'?false:'');if(k==='prov')S.muni='';reset0()});
-  for(const [k,id] of [['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']])on(id,'click',()=>{S.tab=k;render()});
+  for(const [k,id] of [['H','tabH'],['C','tabC'],['M','tabM'],['P','tabP'],['R','tabR'],['S','tabS']])on(id,'click',()=>{S.tab=k;render()});
+  on('bnav','click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;S.tab=b.dataset.tab;$('aside').classList.remove('open');render();window.scrollTo({top:0})});
+  on('fBtn','click',()=>{$('aside').classList.add('open')});on('fClose','click',()=>{$('aside').classList.remove('open');window.scrollTo({top:0})});
+  on('dlx','click',e=>downloadXlsx(filtered(),'medicos_filtrados.xlsx',e.target));
+  on('hoy','click',e=>{const g=e.target.closest('[data-goroute]');if(g){S.route=g.dataset.goroute;S.tab='R';render();window.scrollTo({top:0});return}
+    const p=e.target.closest('[data-plantoday]');if(p){const d=new Date();while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);P.fecha=d.toISOString().slice(0,10);P.foco=p.dataset.plantoday;P.plan=buildPlan();S.tab='P';render();window.scrollTo({top:0})}});
+  try{window.matchMedia('(max-width:760px)').addEventListener('change',()=>render())}catch(e){}
   on('more','click',()=>{S.limit+=100;render()});on('rankMore','click',()=>{S.rlimit+=40;render()});
   const toggle=e=>{if(e.target.closest('a,button,input,label'))return;const tr=e.target.closest('tr.row');if(!tr)return;const c=+tr.dataset.c;S.open.has(c)?S.open.delete(c):S.open.add(c);render()};
   on('tbody','click',toggle);on('sbody','click',toggle);
@@ -384,7 +393,7 @@ async function setupAsk(){
     {name:'planificar_dia',description:'Genera en pantalla la ruta de un día concreto con horario de salida y vuelta a Santpedor, y devuelve las paradas, médicos y hora de vuelta. Usa foco auto o un id de ruta (T1,T2,T3,R1-R6).',
      inputSchema:{type:'object',properties:{fecha:{type:'string',description:'AAAA-MM-DD'},salida:{type:'string',description:'HH:MM, por defecto 08:00'},vuelta:{type:'string',description:'HH:MM, por defecto 19:00'},visitas_desde:{type:'string'},visitas_hasta:{type:'string'},foco:{type:'string'}},required:['fecha']},
      execute:inp=>{P.fecha=String(inp.fecha);if(inp.salida)P.salida=inp.salida;if(inp.vuelta)P.vuelta=inp.vuelta;if(inp.visitas_desde)P.ini=inp.visitas_desde;if(inp.visitas_hasta)P.fin=inp.visitas_hasta;P.foco=inp.foco&&ROUTES.find(r=>r.id===inp.foco)?inp.foco:'auto';S.tab='P';P.plan=buildPlan();render();const pl=P.plan;if(pl.error)throw new Error(pl.error);
-       return {medicos:pl.visitas,paradas:pl.stops.map(s=>({hora:hm(s.arr),centro:s.ct.ce,municipio:s.ct.m,medicos:s.seq.map(x=>x.d.n)})),vuelta_estimada:hm(pl.llegada),prioritarios_fuera:pl.miss.length}}},
+       return {medicos:pl.visitas,paradas:pl.stops.filter(s=>!s.lunch).map(s=>({hora:hm(s.arr),centro:s.ct.ce,municipio:s.ct.m,medicos:s.seq.map(x=>x.d.n)})),vuelta_estimada:hm(pl.llegada),prioritarios_fuera:pl.miss.length}}},
     {name:'rutas',description:'Muestra la pestaña Rutas y devuelve las rutas urgentes (T1, T2) y las 6 del ciclo con médicos, visitados y la ruta sugerida (la menos trabajada). Si se pasa id (T1, T2, T3, R1-R6) la abre.',
      inputSchema:{type:'object',properties:{id:{type:'string'}}},
      execute:inp=>{S.tab='R';if(inp.id&&ROUTES.find(r=>r.id===inp.id))S.route=inp.id;render();const st=ROUTES.map(r=>({id:r.id,nombre:r.name,...routeStats(r)}));
@@ -414,6 +423,57 @@ Pregunta: ${q}`;
       $('answerText').textContent=(err.text||'')+(msg!==undefined?(msg?'\n'+msg:''):'\nNo se ha podido responder ('+(err.code||'error')+'). Prueba a reformular la pregunta.');if(err.code==='not_granted')$('ask').hidden=true;}
     finally{$('askBtn').disabled=false}
   };
+}
+
+/* ---------- v1.1: utilidades móvil ---------- */
+const isMob=()=>!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
+function telHref(t){const d=String(t||'').split(/[\/;,]| o /)[0].replace(/[^\d+]/g,'');if(d.length<9)return '';return 'tel:'+(d.startsWith('+')?d:(d.length===9?'+34'+d:d))}
+function mapsHref(c){const q=c.d?`${c.d}, ${c.m}`:(c.ce&&c.ce!=='CONSULTA PRIVADA'?`${c.ce}, ${c.m}`:'');if(!q)return '';const e=encodeURIComponent(q);
+  return (localStorage.getItem('dlc_maps')==='apple')?`https://maps.apple.com/?daddr=${e}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=driving`}
+function actBtns(d,c,extra){const t=telHref(c.tel||d.tel),m=mapsHref(c);
+  return `<div class="acts2">${t?`<a class="act" href="${t}">Llamar</a>`:''}${m?`<a class="act" href="${esc(m)}" target="_blank" rel="noopener">Cómo llegar</a>`:''}<button type="button" class="act" data-edit="${d.c}">Editar ficha</button><button type="button" class="act pri2" data-reg="${d.c}" data-ce="${esc(c.ce||'')}">Registrar</button>${extra||''}</div>`}
+function cardHTML(d,c){const qc=d.q.startsWith('Confirmada con')?'ok':d.q.startsWith('Confirmada')?'mid':'';const dy=daysFor(d,c);
+  return `<div class="card"><div class="nm">${d.top?'<span class="topb">Urgente</span> ':''}${esc(d.n)}${d.ed?' <span class="edb">editada</span>':''}</div>
+  <div class="sm">${esc(d.e||'Sin especialidad')}${d.top?' · '+esc(d.top):''}</div>
+  <div style="margin-top:6px">${esc(c.ce||'Sin centro')}${c.g&&c.g!==c.ce?` <span class="sm">· ${esc(c.g)}</span>`:''}</div>
+  <div class="sm">${esc([c.d,c.m].filter(Boolean).join(' · '))}${d.cons.length>1?` · ${d.cons.length} consultas`:''}</div>
+  <div class="row2">${dayBadges(dy)}<span class="q ${qc}" style="font-size:12.5px">${esc(d.q.replace('Sin verificar: dato original','Sin verificar').replace('Confirmada: ','Confirmada, '))}</span></div>
+  ${dy.some(Boolean)?`<div class="sm" style="margin-top:4px">${DAYS.map((k,i)=>dy[i]?k+' '+esc(dy[i]):'').filter(Boolean).join(' · ')}</div>`:''}
+  ${d.vn?`<div class="sm">Cuándo: ${esc(d.vn)}</div>`:''}
+  <div style="margin-top:4px">${visitCell(d)}</div>${actBtns(d,c)}</div>`}
+/* ---------- Hoy ---------- */
+function renderH(){
+  $('count').innerHTML='';
+  const td=today(),wk=new Date();wk.setDate(wk.getDate()+7);const wks=wk.toISOString().slice(0,10);
+  const segs=[...SEG.values()].filter(s=>BYCODE.has(s.c));
+  const due=segs.filter(s=>s.prox_f&&s.prox_f<=wks).sort((a,b)=>a.prox_f.localeCompare(b.prox_f));
+  const urg=DATA.filter(d=>d.top&&!(segOf(d.c)&&segOf(d.c).ultima));
+  const monday=new Date();monday.setDate(monday.getDate()-((monday.getDay()+6)%7));const ms=monday.toISOString().slice(0,10);
+  const weekV=segs.reduce((n,s)=>n+(s.visitas||[]).filter(v=>v.f>=ms).length,0);
+  const pend=(typeof obxGet==='function')?obxGet().length:0;
+  const stats=ROUTES.map(r=>({r,...routeStats(r)}));
+  const sug=stats.find(x=>x.r.top&&x.v<x.n)||[...stats].filter(x=>!x.r.top).sort((a,b)=>(a.v/a.n)-(b.v/b.n)||(a.last||'').localeCompare(b.last||''))[0];
+  let h=`<div class="kpis"><div class="kpi"><b>${weekV}</b><span>visitas esta semana</span></div><div class="kpi"><b>${due.filter(s=>s.prox_f<=td).length}</b><span>acciones para hoy o atrasadas</span></div><div class="kpi"><b>${urg.length}</b><span>urgentes sin visitar</span></div><div class="kpi"><b>${pend}</b><span>${pend===1?'cambio pendiente':'cambios pendientes'} de enviar</span></div></div>`;
+  h+=`<div class="hsec"><h3>Siguiente ruta sugerida</h3><div class="card" style="border:1px solid var(--line);border-radius:12px"><div class="nm">${esc(sug.r.name)}</div><div class="sm">${sug.n} médicos · ${sug.v} visitados</div>
+     <div class="acts2"><button type="button" class="act" data-goroute="${sug.r.id}">Ver ruta</button><button type="button" class="act pri2" data-plantoday="${sug.r.top?sug.r.id:'auto'}">Planificar ${new Date().getDay()%6===0?'el próximo día laborable':'hoy'}</button></div></div></div>`;
+  h+=`<div class="hsec"><h3>Próximas acciones (7 días)</h3>${due.length?due.slice(0,30).map(s=>{const d=BYCODE.get(s.c);const c=d.cons.find(x=>x.ce===s.ce)||d.cons[0];
+     return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm"><b style="color:${s.prox_f<td?'var(--warn)':'var(--navy)'}">${fmtDate(s.prox_f)}</b> · ${esc(s.prox||'Seguimiento')} · última visita ${fmtDate(s.ultima)} (${esc(s.res||'')})</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">No hay acciones con fecha en los próximos 7 días.</p>'}</div>`;
+  h+=`<div class="hsec"><h3>Urgentes sin visitar</h3>${urg.length?urg.map(d=>{const c=d.cons[0];return `<div class="card" style="border:1px solid var(--line);border-radius:12px;margin-bottom:8px"><div class="nm">${esc(d.n)}</div><div class="sm">${esc(d.top)} · ${esc(c.ce||'')}${d.vn?' · '+esc(d.vn):''}</div>${actBtns(d,c)}</div>`}).join(''):'<p class="sm">Todos los urgentes están visitados.</p>'}</div>`;
+  $('hoy').innerHTML=h;
+}
+/* ---------- Excel ---------- */
+let XLSXP=null;
+function loadXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(XLSXP)return XLSXP;XLSXP=new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=()=>res(window.XLSX);sc.onerror=()=>{XLSXP=null;rej(new Error('sin conexión'))};document.head.appendChild(sc)});return XLSXP}
+async function downloadXlsx(rows,name,btn){
+  const old=btn&&btn.textContent; if(btn){btn.textContent='Preparando…';btn.disabled=true}
+  try{const X=await loadXLSX();
+    const head=['CÓDIGO','NOMBRE','ESPECIALIDAD','ÁREA','PRIORIDAD','CENTRO','GRUPO','DIRECCIÓN','CP','MUNICIPIO','PROVINCIA','TELÉFONO',...DAYS,'CALIDAD UBICACIÓN','Nº CONSULTAS','OTRAS CONSULTAS','ÚLTIMA VISITA','RESULTADO','PRÓXIMA ACCIÓN','FECHA PRÓXIMA','CONTACTO'];
+    const data=[head,...rows.map(([d,c])=>{const s=segOf(d.c)||{};return [d.c,d.n,d.e,d.a,d.top?'Urgente · '+d.top:(d.cor?'Corachan · por visitar':''),c.ce,c.g,c.d,c.cp,c.m,c.p,c.tel||d.tel,...daysFor(d,c),d.q,d.cons.length,
+      d.cons.filter(x=>x!==c).map(x=>[x.ce,x.d,x.m].filter(Boolean).join(', ')).join(' | '),fmtDate(s.ultima),s.res||'',s.prox||'',fmtDate(s.prox_f),s.contacto||'']})];
+    const ws=X.utils.aoa_to_sheet(data);ws['!cols']=head.map((h,i)=>({wch:[8,32,20,20,26,30,22,30,7,20,12,14][i]||16}));ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:data.length-1,c:head.length-1}})};
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'MEDICOS');X.writeFile(wb,name);
+  }catch(e){alert('No se ha podido crear el Excel: '+e.message+'. Hace falta conexión la primera vez.')}
+  finally{if(btn){btn.textContent=old;btn.disabled=false}}
 }
 
 /* ================= Plan del día ================= */
@@ -465,8 +525,8 @@ function windowsFor(d,c,di){ // null = no pasa ese día; [] no pasa; [[a,b]]
   if(!known)return {known:false,w:[[0,1440]]};
   return {known:true,w};
 }
-const P={fecha:'',salida:'08:00',vuelta:'19:00',ini:'09:00',fin:'18:00',min:15,cap:6,foco:'auto',loc:true,excl:new Set(),plan:null};
-try{const sv=JSON.parse(localStorage.getItem('plandia')||'{}');['salida','vuelta','ini','fin','min','foco','cap'].forEach(k=>{if(sv[k]!=null)P[k]=sv[k]})}catch(e){}
+const P={fecha:'',salida:'08:00',vuelta:'19:00',ini:'09:00',fin:'18:00',min:15,cap:6,comer:false,cIni:'14:00',cDur:45,foco:'auto',loc:true,excl:new Set(),plan:null};
+try{const sv=JSON.parse(localStorage.getItem('plandia')||'{}');['salida','vuelta','ini','fin','min','foco','cap','comer','cIni','cDur'].forEach(k=>{if(sv[k]!=null)P[k]=sv[k]})}catch(e){}
 function nextWorkday(){const d=new Date();d.setDate(d.getDate()+1);while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);return d.toISOString().slice(0,10)}
 function focusCodes(){
   if(P.foco==='auto')return null;
@@ -511,8 +571,9 @@ function buildPlan(){
   const C=[...centres.values()];
   const start=toMin(P.salida),back=toMin(P.vuelta),vIni=toMin(P.ini),vFin=toMin(P.fin),vis=Math.max(5,+P.min||15),OVER=10,MAXWAIT=40;
   const cap=P.foco==='T3'?40:Math.max(1,+P.cap||6); C.forEach(ct=>ct.used=null);
-  let t=start,pos=[HOME.lat,HOME.lon],posB=false; const stops=[]; const done=new Set();
+  let t=start,pos=[HOME.lat,HOME.lon],posB=false; const stops=[]; const done=new Set(); let lunched=!P.comer; const lIni=toMin(P.cIni),lDur=Math.max(15,+P.cDur||45);
   for(let guard=0;guard<40;guard++){
+    if(!lunched&&t>=lIni){stops.push({lunch:true,arr:t,end:t+lDur});t+=lDur;lunched=true}
     let best=null;
     for(const ct of C){
       const docs=ct.docs.filter(x=>!done.has(x.d.c)); if(!docs.length)continue;
@@ -529,6 +590,7 @@ function buildPlan(){
       if(!best||ratio>best.ratio)best={ct,arr,tr,end:tt,seq,ratio};
     }
     if(!best)break;
+    if(!lunched&&best.arr>lIni+30&&t<lIni+60){stops.push({lunch:true,arr:Math.max(t,lIni),end:Math.max(t,lIni)+lDur});t=Math.max(t,lIni)+lDur;lunched=true;continue}
     best.seq.forEach(x=>done.add(x.d.c)); best.ct.used=best.end; stops.push(best); t=best.end; pos=best.ct.xy; posB=best.ct.bcn;
   }
   const home=travel(pos,[HOME.lat,HOME.lon],posB,false);
@@ -549,34 +611,40 @@ function renderP(){
    <div><label for="pE">Visitas hasta</label><input type="time" id="pE" value="${P.fin}"></div>
    <div><label for="pM">Minutos por médico</label><input type="number" id="pM" min="5" max="60" value="${P.min}"></div>
    <div><label for="pC">Máx. médicos por parada</label><input type="number" id="pC" min="1" max="30" value="${P.cap}"></div>
+   <div><label for="pCo">Pausa para comer</label><select id="pCo"><option value="0" ${P.comer?'':'selected'}>No</option><option value="1" ${P.comer?'selected':''}>Sí</option></select></div>
+   <div><label for="pCi">Comer a partir de</label><input type="time" id="pCi" value="${P.cIni}"></div>
+   <div><label for="pCd">Minutos para comer</label><input type="number" id="pCd" min="15" max="120" value="${P.cDur}"></div>
    <div class="wide"><label for="pFo">Qué visitar</label><select id="pFo">${opts.map(([v,l])=>`<option value="${v}" ${P.foco===v?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
    <div class="wide"><button class="btn" id="pGo">Generar ruta del día</button></div></div>`;
   const pl=P.plan;
   if(pl&&pl.error)h+=`<div class="warn">${esc(pl.error)}</div>`;
   else if(pl){
     const dname=DAYN[DAYS[pl.di]];
-    h+=`<div class="psum"><b>${pl.visitas}</b> médicos en <b>${pl.stops.length}</b> paradas · ${dname} ${fmtDate(P.fecha)} · salida ${P.salida} · vuelta estimada <b>${hm(pl.llegada)}</b></div>`;
+    h+=`<div class="psum"><b>${pl.visitas}</b> médicos en <b>${pl.stops.filter(s=>!s.lunch).length}</b> paradas · ${dname} ${fmtDate(P.fecha)} · salida ${P.salida} · vuelta estimada <b>${hm(pl.llegada)}</b></div>`;
     if(!pl.stops.length)h+=`<div class="warn">No cabe ninguna visita con este horario. Amplía la hora de vuelta o cambia lo que quieres visitar.</div>`;
-    const places=pl.stops.map(s=>s.ct.d?`${s.ct.d}, ${s.ct.m}`:`${s.ct.ce}, ${s.ct.m}`);
+    const real=pl.stops.filter(s=>!s.lunch);const places=real.map(s=>s.ct.d?`${s.ct.d}, ${s.ct.m}`:`${s.ct.ce}, ${s.ct.m}`);
+    const nowM=new Date().getHours()*60+new Date().getMinutes();const isToday=P.fecha===today();const nextI=isToday?pl.stops.findIndex(s=>!s.lunch&&s.end>=nowM):-1;
     const links=[];for(let i=0;i<places.length;i+=8){const part=places.slice(i,i+8);const o=i===0?'Santpedor':places[i-1];const dst=i+8>=places.length?'Santpedor':part[part.length-1];const wp=i+8>=places.length?part:part.slice(0,-1);
       links.push('https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(o)+'&destination='+encodeURIComponent(dst)+'&travelmode=driving'+(wp.length?'&waypoints='+encodeURIComponent(wp.join('|')):''))}
     if(links.length)h+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">${links.map((u,i)=>`<a class="btn" target="_blank" rel="noopener" href="${esc(u)}">Abrir en Google Maps${links.length>1?' ('+(i+1)+'/'+links.length+')':''}</a>`).join('')}</div>`;
     h+=`<ol class="tl"><li class="tlh"><span class="tt">${P.salida}</span> Salida de Santpedor</li>`;
-    pl.stops.forEach(s=>{
-      h+=`<li><span class="tt">${hm(s.arr)}</span><div><div class="an">${esc(s.ct.ce==='CONSULTA PRIVADA'||!s.ct.ce?'Consulta privada':s.ct.ce)}</div><div class="sm">${esc(s.ct.d||'Dirección por confirmar')} · ${esc(s.ct.m)} · ${s.tr} min de trayecto</div>
+    pl.stops.forEach((s,si)=>{
+      if(s.lunch){h+=`<li class="lunch"><span class="tt">${hm(s.arr)}</span><div><div class="an">Pausa para comer</div><div class="sm">Hasta las ${hm(s.end)}</div></div></li>`;return}
+      const cc={ce:s.ct.ce,d:s.ct.d,m:s.ct.m};const mh=mapsHref(cc);
+      h+=`<li class="${si===nextI?'now':''}"><span class="tt">${hm(s.arr)}</span><div>${si===nextI?'<div class="sm" style="font-weight:700;color:var(--navy)">Siguiente parada</div>':''}<div class="an">${esc(s.ct.ce==='CONSULTA PRIVADA'||!s.ct.ce?'Consulta privada':s.ct.ce)}</div><div class="sm">${esc(s.ct.d||'Dirección por confirmar')} · ${esc(s.ct.m)} · ${s.tr} min de trayecto</div>${mh?`<div class="acts2" style="margin-top:6px"><a class="act pri2" href="${esc(mh)}" target="_blank" rel="noopener">Ir a esta parada</a></div>`:''}
        <ul class="plist">${s.seq.map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${x.d.top?'<span class="topb">Urgente</span> ':''}${esc(x.d.n)}</div><div class="sm">${hm(x.at)} · ${esc(x.d.e||'')}${x.known?' · pasa consulta hoy':''}${x.d.vn?' · '+esc(x.d.vn):''}</div></span>
-       <span style="display:flex;gap:6px"><button class="reg" data-edit="${x.d.c}">Editar</button><button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button><button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
+       <span style="display:flex;gap:6px">${telHref(x.c.tel||x.d.tel)?`<a class="reg" href="${telHref(x.c.tel||x.d.tel)}">Llamar</a>`:''}<button class="reg" data-edit="${x.d.c}">Editar</button><button class="reg" data-reg="${x.d.c}" data-ce="${esc(x.c.ce||'')}">Registrar</button><button class="reg" data-ex="${x.d.c}" title="Quitar y volver a calcular">Quitar</button></span></li>`).join('')}</ul></div></li>`;
     });
     h+=`<li class="tlh"><span class="tt">${hm(pl.llegada)}</span> Llegada a Santpedor (${pl.home} min de vuelta)</li></ol>`;
     if(pl.miss.length)h+=`<details class="anchor"><summary><span><span class="an">Prioritarios que no entran este día</span><div class="sm">Urgentes y contactos de Corachan, con el motivo</div></span><span class="ac">${pl.miss.length}</span></summary><ul class="plist">${pl.miss.slice(0,60).map(x=>`<li><span class="pri ${prio(x.d)}">${prio(x.d)}</span><span><div class="nm">${esc(x.d.n)}</div><div class="sm">${esc(x.reason)}${x.d.vn?' · '+esc(x.d.vn):''}</div></span><span></span></li>`).join('')}</ul></details>`;
     if(P.excl.size)h+=`<p class="sm">${P.excl.size} quitados a mano. <button class="reg" id="pClr">Volver a incluirlos</button></p>`;
-    h+=`<p class="sm">Tiempos estimados en coche (sin tráfico real) y ${P.min} min por médico, 10 min por parada y como máximo ${P.foco==='T3'?'todos los contactos':P.cap+' médicos'} por parada (si quedan más, se vuelve por la tarde). Los médicos con días conocidos solo se proponen el día y la franja en que pasan consulta; los demás, en cualquier hora de visita.</p>`;
+    h+=`<p class="sm">${P.comer?'Incluye pausa para comer. ':''}Tiempos estimados en coche (sin tráfico real) y ${P.min} min por médico, 10 min por parada y como máximo ${P.foco==='T3'?'todos los contactos':P.cap+' médicos'} por parada (si quedan más, se vuelve por la tarde). Los médicos con días conocidos solo se proponen el día y la franja en que pasan consulta; los demás, en cualquier hora de visita.</p>`;
   }
   $('plan').innerHTML=h;
 }
 function runPlan(){
-  P.fecha=$('pF').value;P.salida=$('pS').value||'08:00';P.vuelta=$('pV').value||'19:00';P.ini=$('pI').value||'09:00';P.fin=$('pE').value||'18:00';P.min=+$('pM').value||15;P.cap=+$('pC').value||6;P.foco=$('pFo').value;
-  try{localStorage.setItem('plandia',JSON.stringify({salida:P.salida,vuelta:P.vuelta,ini:P.ini,fin:P.fin,min:P.min,foco:P.foco,cap:P.cap}))}catch(e){}
+  P.fecha=$('pF').value;P.salida=$('pS').value||'08:00';P.vuelta=$('pV').value||'19:00';P.ini=$('pI').value||'09:00';P.fin=$('pE').value||'18:00';P.min=+$('pM').value||15;P.cap=+$('pC').value||6;P.foco=$('pFo').value;P.comer=$('pCo').value==='1';P.cIni=$('pCi').value||'14:00';P.cDur=+$('pCd').value||45;
+  try{localStorage.setItem('plandia',JSON.stringify({salida:P.salida,vuelta:P.vuelta,ini:P.ini,fin:P.fin,min:P.min,foco:P.foco,cap:P.cap,comer:P.comer,cIni:P.cIni,cDur:P.cDur}))}catch(e){}
   P.plan=buildPlan(); renderP();
 }
 
@@ -762,8 +830,9 @@ async function setupDb(){
   window.addEventListener('online',()=>{syncUI();flush();checkUpdates()}); window.addEventListener('offline',syncUI);
   setInterval(flush,60000);
   $('syncBtn').onclick=()=>{flush().then(checkUpdates)};
-  $('cfgBtn').onclick=()=>{$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').textContent=`Versión ${window.__APPVER||''} · datos de ${window.__RAWJ&&window.__RAWJ.hora?new Date(window.__RAWJ.hora).toLocaleString('es'):'—'}`;$('cfgDlg').showModal()};
-  $('cfgClose').onclick=()=>$('cfgDlg').close();
+  $('cfgBtn').onclick=()=>{$('cfgMaps').value=localStorage.getItem('dlc_maps')||'google';$('cfgUrl').value=CFG.url||'';$('cfgT').value=CFG.t||'';$('cfgMsg').textContent=`Versión ${window.__APPVER||''} · datos de ${window.__RAWJ&&window.__RAWJ.hora?new Date(window.__RAWJ.hora).toLocaleString('es'):'—'}`;$('cfgDlg').showModal()};
+  $('cfgClose').onclick=()=>{localStorage.setItem('dlc_maps',$('cfgMaps').value);$('cfgDlg').close();render()};
+  $('cfgXlsx').onclick=e=>downloadXlsx(DATA.map(d=>[d,d.cons[0]]),'DLC_medicos_completo.xlsx',e.target);
   $('cfgSave').onclick=()=>{const u=$('cfgUrl').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u)){$('cfgMsg').textContent='La dirección debe empezar por https://script.google.com/macros/s/ y acabar en /exec.';return}localStorage.setItem('dlc_cfg',JSON.stringify({url:u,t:$('cfgT').value.trim()}));location.reload()};
   $('cfgReload').onclick=async()=>{if(obxGet().length){await flush()} if(obxGet().length){$('cfgMsg').textContent='Hay cambios sin enviar. Conéctate a internet y vuelve a intentarlo.';return} window.__reloadData&&window.__reloadData()};
   $('newDataBtn').onclick=()=>location.reload();

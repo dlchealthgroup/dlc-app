@@ -9,6 +9,8 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="DLC OS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -175,6 +177,63 @@ dialog{max-height:92vh;overflow:auto}
 #boot .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:460px;width:100%}
 #boot h2{margin:0 0 6px;color:var(--navy)}#boot label{display:block;font-size:12.5px;color:var(--muted);margin:12px 0 3px}
 #boot input{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--bg)}
+
+/* ---------- v1.1: móvil ---------- */
+html,body{max-width:100%;overflow-x:hidden}
+.layout>*{min-width:0}
+.fbtn,.fclose,.bnav{display:none}
+.cards{display:none}
+.card{border-bottom:1px solid var(--line);padding:12px 14px}
+.card .nm{font-size:15.5px}
+.card .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.acts2{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.act{flex:1 1 auto;min-width:0;text-align:center;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 10px;font-weight:600;font-size:14px;color:var(--navy);text-decoration:none;cursor:pointer}
+.act.pri2{background:var(--navy);color:var(--panel);border-color:var(--navy)}
+.tl>li.now{background:var(--sky-soft);border-radius:10px}
+.tl>li.lunch .an{color:var(--muted)}
+.hsec{margin-bottom:18px}.hsec h3{margin:0 0 8px;font-size:15px;color:var(--navy)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}.kpi b{display:block;font-size:24px;color:var(--navy)}.kpi span{font-size:12.5px;color:var(--muted)}
+.dayrow{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center}
+@media (max-width:760px){
+  body{font-size:15px}
+  .wrap{padding:10px 12px calc(84px + env(safe-area-inset-bottom,0px))}
+  header.top{margin-bottom:10px}
+  header.top h1{font-size:18px}
+  header.top p{font-size:12.5px}
+  .syncbar .reg{padding:6px 9px}
+  .tabs{display:none}
+  .bar{margin-bottom:8px}
+  .count{font-size:13.5px}.count b{font-size:18px}
+  .fbtn{display:inline-block;border:1px solid var(--navy);color:var(--navy);background:var(--panel);border-radius:999px;padding:6px 14px;font-weight:600}
+  .fbtn.on{background:var(--navy);color:var(--panel)}
+  aside{display:none;position:fixed;inset:0;z-index:40;border-radius:0;overflow:auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(90px + env(safe-area-inset-bottom,0px))}
+  aside.open{display:block}
+  aside h2{position:sticky;top:-14px;background:var(--panel);padding:8px 0;z-index:1}
+  .fclose{display:inline-block;padding:7px 12px}
+  input,select,textarea{font-size:16px!important}
+  .bnav{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))}
+  .bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:var(--muted);padding:4px 0;cursor:pointer}
+  .bnav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .bnav button[aria-current=true]{color:var(--navy);font-weight:700}
+  #viewM .tablewrap{display:none}
+  .cards{display:block}
+  .opts{padding:10px 12px}
+  .rank button{grid-template-columns:24px minmax(0,1fr) 44px;padding:9px 12px;gap:8px}
+  .plist li{grid-template-columns:auto minmax(0,1fr)}
+  .plist li>span:last-child{grid-column:1/-1;flex-wrap:wrap}
+  .tl>li{grid-template-columns:48px minmax(0,1fr);padding-left:10px}
+  .pform{grid-template-columns:1fr 1fr}
+  .pform .wide{grid-column:1/-1}
+  .routes{grid-template-columns:1fr;padding:12px}
+  .stats{gap:14px}
+  dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0}
+  dialog form,dialog .fi{padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px))!important}
+  .grid5{grid-template-columns:1fr}
+  .grid5>div{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center}
+  .acts{position:sticky;bottom:0;background:var(--panel);padding:10px 0 4px}
+  .warn{margin:10px 0 0}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -197,8 +256,8 @@ dialog{max-height:92vh;overflow:auto}
   </section>
 
   <div class="layout">
-    <aside aria-label="Filtros">
-      <h2>Filtros <button type="button" id="reset">Quitar todos</button></h2>
+    <aside aria-label="Filtros" id="aside">
+      <h2>Filtros <span style="display:flex;gap:12px;align-items:center"><button type="button" id="reset">Quitar todos</button><button type="button" class="btn fclose" id="fClose">Ver resultados</button></span></h2>
       <div class="f"><label for="fProv">Provincia</label><select id="fProv"></select></div>
       <div class="f"><label for="fMuni">Municipio</label><select id="fMuni"></select></div>
       <div class="f"><label for="fGrupo">Grupo de centro</label><select id="fGrupo"></select></div>
@@ -216,17 +275,20 @@ dialog{max-height:92vh;overflow:auto}
     <main class="main">
       <div class="bar">
         <div class="tabs" role="tablist">
-          <button role="tab" id="tabC" aria-selected="true">Centros</button>
+          <button role="tab" id="tabH" aria-selected="true">Hoy</button>
+          <button role="tab" id="tabC" aria-selected="false">Centros</button>
           <button role="tab" id="tabM" aria-selected="false">Médicos</button>
           <button role="tab" id="tabP" aria-selected="false">Plan del día</button>
           <button role="tab" id="tabR" aria-selected="false">Rutas</button>
           <button role="tab" id="tabS" aria-selected="false">Seguimiento</button>
         </div>
         <div class="count" id="count"></div>
+        <button type="button" class="fbtn" id="fBtn">Filtros</button>
       </div>
       <div class="chips" id="chips"></div>
 
-      <section class="panel" id="viewC">
+      <section class="panel" id="viewH" hidden><div id="hoy" style="padding:14px"></div></section>
+      <section class="panel" id="viewC" hidden>
         <div class="opts">
           <span>Agrupar por</span>
           <label><input type="radio" name="agr" value="grupo" checked> grupo</label>
@@ -241,12 +303,13 @@ dialog{max-height:92vh;overflow:auto}
       <section class="panel" id="viewM" hidden>
         <div class="opts" style="justify-content:space-between">
           <span class="sm" id="mNote"></span>
-          <button class="dl" id="dl" hidden>Descargar CSV</button>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="dl" id="dlx">Descargar Excel</button><button class="dl" id="dl" hidden>Descargar CSV</button></span>
         </div>
         <div class="tablewrap"><table>
           <thead><tr><th>Médico</th><th>Centro</th><th>Municipio</th><th>Dirección</th><th>Teléfono</th><th>Días</th><th>Ubicación</th><th>Visita</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table></div>
+        <div class="cards" id="mcards"></div>
         <button class="more" id="more" hidden>Mostrar 100 más</button>
       </section>
 
@@ -298,15 +361,17 @@ dialog{max-height:92vh;overflow:auto}
 </div>
 
 
+<nav class="bnav" id="bnav"><button type="button" data-tab="H"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Hoy</span></button><button type="button" data-tab="C"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M9 20v-5h6v5M9 11h.01M15 11h.01"/></svg><span>Centros</span></button><button type="button" data-tab="M"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Médicos</span></button><button type="button" data-tab="P"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg><span>Plan</span></button><button type="button" data-tab="R"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/></svg><span>Rutas</span></button><button type="button" data-tab="S"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/><path d="M5 19h14"/></svg><span>Seguim.</span></button></nav>
 <dialog id="cfgDlg"><div class="fi" style="padding:18px">
   <h3>Ajustes</h3>
   <label for="cfgUrl">Dirección de la conexión (URL que acaba en /exec)</label><input id="cfgUrl" autocomplete="off" spellcheck="false" autocapitalize="off" inputmode="url">
   <label for="cfgT">Clave</label><input id="cfgT" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
-  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
+  <label for="cfgMaps">App de mapas para "Cómo llegar"</label><select id="cfgMaps"><option value="google">Google Maps</option><option value="apple">Apple Maps</option></select>
+  <div class="acts" style="flex-wrap:wrap"><button type="button" class="btn sec" id="cfgXlsx">Descargar todo en Excel</button><button type="button" class="btn sec" id="cfgReload">Volver a descargar los datos</button><button type="button" class="btn sec" id="cfgClose">Cerrar</button><button type="button" class="btn" id="cfgSave">Guardar</button></div>
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.0.2';
+window.__APPVER='1.1.0';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -341,7 +406,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.0.2'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.1.0'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
