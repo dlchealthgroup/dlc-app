@@ -710,15 +710,24 @@ let flushing=false,lastSync=localStorage.getItem('dlc_lastsync')||'';
 async function flush(){
   if(flushing||!navigator.onLine||!CFG.url)return; const box=obxGet(); if(!box.length){syncUI();return}
   flushing=true;syncUI();
+  const okIds=new Set();
   try{
-    const r=await fetch(CFG.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
-    const j=await r.json(); if(!j.ok)throw new Error(j.error||'error');
-    const okIds=new Set(j.results.filter(x=>x.ok).map(x=>x.id));
-    obxSet(obxGet().filter(o=>!okIds.has(o.id)));
-    lastSync=new Date().toISOString();localStorage.setItem('dlc_lastsync',lastSync);
-    const bad=j.results.filter(x=>!x.ok); if(bad.length)console.warn('Operaciones con error',bad);
+    if(localStorage.getItem('dlc_mode')!=='jsonp'){
+      try{
+        const r=await fetch(CFG.url,{method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({t:CFG.t,a:'batch',ops:box.map(o=>({id:o.id,tipo:o.tipo,data:o.data}))})});
+        const j=JSON.parse(await r.text()); if(j.ok)j.results.filter(x=>x.ok).forEach(x=>okIds.add(x.id));
+      }catch(e){console.warn('POST no disponible, uso el método alternativo',e)}
+    }
+    for(const o of box){ // método alternativo (y comprobación de lo que el POST no confirmó)
+      if(okIds.has(o.id))continue;
+      const d=JSON.stringify({ops:[{id:o.id,tipo:o.tipo,data:o.data}]});
+      const j=await window.__jsonp(CFG.url+'?t='+encodeURIComponent(CFG.t)+'&a=op&d='+encodeURIComponent(d),60000);
+      if(j&&j.ok)j.results.filter(x=>x.ok).forEach(x=>okIds.add(x.id));
+    }
   }catch(e){console.warn('Sin sincronizar',e)}
-  finally{flushing=false;syncUI()}
+  finally{
+    if(okIds.size){obxSet(obxGet().filter(o=>!okIds.has(o.id)));lastSync=new Date().toISOString();localStorage.setItem('dlc_lastsync',lastSync)}
+    flushing=false;syncUI()}
 }
 function syncUI(){
   const el=$('syncState'); if(!el)return; const n=obxGet().length;

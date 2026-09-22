@@ -306,7 +306,7 @@ dialog{max-height:92vh;overflow:auto}
   <div class="sm" id="cfgMsg" style="margin-top:10px"></div></div></dialog>
 <div id="boot"><div class="card" id="bootCard"><h2>DLC OS</h2><p class="sm" id="bootMsg">Cargando…</p></div></div>
 <script>
-window.__APPVER='1.0.1';
+window.__APPVER='1.0.2';
 const DEF_URL='https://script.google.com/macros/s/AKfycbykgTuMywKWjPqWvi4oMwAH36KgApypzu5n0Sj98Vf6wYMgapiltFlq-e02ZSmRn3do/exec';
 const CPD0={'08001':'Ciutat Vella','08002':'Ciutat Vella','08003':'Ciutat Vella','08004':'Sants-Montjuïc','08005':'Sant Martí','08006':'Sarrià-Sant Gervasi','08007':'Eixample','08008':'Eixample','08009':'Eixample','08010':'Eixample','08011':'Eixample','08012':'Gràcia','08013':'Eixample','08014':'Sants-Montjuïc','08015':'Eixample','08016':'Nou Barris','08017':'Sarrià-Sant Gervasi','08018':'Sant Martí','08019':'Sant Martí','08020':'Sant Martí','08021':'Sarrià-Sant Gervasi','08022':'Sarrià-Sant Gervasi','08023':'Gràcia','08024':'Gràcia','08025':'Eixample','08026':'Sant Martí','08027':'Sant Andreu','08028':'Les Corts','08029':'Eixample','08030':'Sant Andreu','08031':'Nou Barris','08032':'Horta-Guinardó','08033':'Nou Barris','08034':'Sarrià-Sant Gervasi','08035':'Horta-Guinardó','08036':'Eixample','08037':'Gràcia','08038':'Sants-Montjuïc','08039':'Ciutat Vella','08040':'Sants-Montjuïc','08041':'Horta-Guinardó','08042':'Nou Barris'};
 /* almacén local (IndexedDB) */
@@ -315,11 +315,17 @@ const idb={db:null,open(){return this.db?Promise.resolve(this.db):new Promise((r
   async set(k,v){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
 function cfg(){try{return JSON.parse(localStorage.getItem('dlc_cfg')||'null')}catch(e){return null}}
 function okUrl(u){return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(u||'')}
+function jsonp(url,ms){return new Promise((res,rej)=>{const cb='__dlc'+Date.now()+Math.floor(Math.random()*1e6);const sc=document.createElement('script');
+  const done=()=>{clearTimeout(t);try{delete window[cb]}catch(e){window[cb]=undefined}sc.remove()};const t=setTimeout(()=>{done();rej(new Error('sin respuesta'))},ms||90000);
+  window[cb]=d=>{done();res(d)};sc.onerror=()=>{done();rej(new Error('no se pudo cargar'))};sc.src=url+(url.indexOf('?')<0?'?':'&')+'cb='+cb;document.head.appendChild(sc)})}
+window.__jsonp=jsonp;
+async function viaFetch(u){const r=await fetch(u,{credentials:'omit',cache:'no-store'});const txt=await r.text();try{return JSON.parse(txt)}catch(e){let h='';try{h=new URL(r.url).hostname}catch(_){}throw new Error('respuesta '+r.status+' desde '+h)}}
 async function fetchAll(c){
   if(!okUrl(c.url))throw new Error('La dirección de la conexión no es válida. Debe empezar por https://script.google.com/macros/s/ y acabar en /exec.');
-  const r=await fetch(c.url+'?t='+encodeURIComponent(c.t)+'&a=all',{credentials:'omit',cache:'no-store'});
-  const txt=await r.text(); let j;
-  try{j=JSON.parse(txt)}catch(e){let h='';try{h=new URL(r.url).hostname}catch(_){}const t=(txt.match(/<title>([^<]*)/i)||[])[1]||'';throw new Error('Google no ha devuelto los datos. Detalle para soporte: respuesta '+r.status+' desde '+h+(t?' · «'+t.trim()+'»':''))}if(!j.ok)throw new Error(j.error==='clave'?'La clave no es correcta.':'Error de la hoja: '+j.error);return j}
+  const u=c.url+'?t='+encodeURIComponent(c.t)+'&a=all'; let j,err1='';
+  if(localStorage.getItem('dlc_mode')!=='jsonp'){try{j=await viaFetch(u);localStorage.setItem('dlc_mode','fetch')}catch(e){err1=e.message}}
+  if(!j){try{j=await jsonp(u);localStorage.setItem('dlc_mode','jsonp')}catch(e){throw new Error('Google no ha devuelto los datos. Detalle para soporte: '+(err1||'fetch omitido')+' · alternativo: '+e.message)}}
+  if(!j.ok)throw new Error(j.error==='clave'?'La clave no es correcta.':'Error de la hoja: '+j.error);return j}
 function tbl(o){const I={};(o.h||[]).forEach((h,i)=>I[h]=i);return (o.rows||[]).map(r=>{const x={};for(const h in I)x[h]=r[I[h]]??'';return x})}
 function transform(raw){
   const M=tbl(raw.MEDICOS),C=tbl(raw.CONSULTAS),N=tbl(raw.NOTAS_VISITA); const DI={L:0,M:1,X:2,J:3,V:4};
@@ -335,7 +341,7 @@ function transform(raw){
 }
 function boot(raw){
   window.__RAWJ=raw; window.__DATA=transform(raw);
-  const s=document.createElement('script'); s.src='app.js?v=1.0.1'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='app.js?v=1.0.2'; s.onload=()=>document.getElementById('boot').remove(); document.body.appendChild(s);
 }
 window.__refreshData=async()=>{const c=cfg();const j=await fetchAll(c);const old=await idb.get('raw');await idb.set('raw',j);
   return !old||JSON.stringify(old.MEDICOS)!==JSON.stringify(j.MEDICOS)||JSON.stringify(old.CONSULTAS)!==JSON.stringify(j.CONSULTAS)||JSON.stringify(old.VISITAS)!==JSON.stringify(j.VISITAS)};
